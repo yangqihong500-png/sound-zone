@@ -1,0 +1,8 @@
+{
+  "navigationBarTitleText": "域详情",
+  "navigationStyle": "custom",
+  "usingComponents": {
+    "queue-item": "../../components/queue-item/queue-item",
+    "moment-card": "../../components/moment-card/moment-card"
+  }
+}

@@ -1,0 +1,37 @@
+/**
+ * uni.scss —— 全局设计令牌（Design Tokens）
+ * 由框架自动注入每个组件的 <style lang="scss">，无需手动 import
+ * 视觉方向参考 docs/01：苹果式极简、统一
+ */
+
+/* 品牌色：TME 生态绿（QQ音乐绿），直播/红心用强调色 */
+$sz-primary: #31c27c;
+$sz-primary-dark: #27a568;
+$sz-primary-light: #e8f9f0;
+$sz-accent: #ff5a5f;
+
+/* 文本 */
+$sz-text: #1a1a1a;
+$sz-text-secondary: #666666;
+$sz-text-tertiary: #999999;
+
+/* 背景 */
+$sz-bg: #f7f8fa;
+$sz-card: #ffffff;
+
+/* 圆角（rpx 适配多端） */
+$sz-radius-sm: 8rpx;
+$sz-radius-md: 16rpx;
+$sz-radius-lg: 24rpx;
+
+/* 字号 */
+$sz-font-xs: 22rpx;
+$sz-font-sm: 26rpx;
+$sz-font-base: 28rpx;
+$sz-font-lg: 32rpx;
+$sz-font-xl: 40rpx;
+
+/* 间距 */
+$sz-gap-sm: 16rpx;
+$sz-gap-md: 24rpx;
+$sz-gap-lg: 32rpx;

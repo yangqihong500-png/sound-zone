@@ -1,0 +1,32 @@
+{
+  "name": "同频 SoundZone",
+  "appid": "",
+  "description": "以「正在做的事」为名的实时共听社区",
+  "versionName": "0.1.0",
+  "versionCode": "100",
+  "transformPx": false,
+  "app-plus": {
+    "usingComponents": true,
+    "compilerVersion": 3,
+    "splashscreen": { "alwaysShowBeforeRender": true, "waiting": true, "autoclose": true, "delay": 0 },
+    "modules": {},
+    "distribute": {
+      "android": { "permissions": [] },
+      "ios": {},
+      "sdkConfigs": {}
+    }
+  },
+  "quickapp": {},
+  "mp-weixin": {
+    "appid": "",
+    "setting": { "urlCheck": false, "es6": true, "minified": true },
+    "usingComponents": true,
+    "permission": {}
+  },
+  "h5": {
+    "title": "同频 SoundZone",
+    "router": { "mode": "hash" },
+    "sdkConfigs": {}
+  },
+  "vueVersion": "3"
+}

@@ -1,0 +1,1 @@
+"use strict";const e=require("../../common/vendor.js"),t={__name:"moment-card",props:{moment:{type:Object,required:!0}},setup:t=>(m,o)=>({a:t.moment.color,b:e.t(t.moment.text),c:e.t(t.moment.track),d:e.t(t.moment.time)})},m=e._export_sfc(t,[["__scopeId","data-v-54562a93"]]);wx.createComponent(m);
