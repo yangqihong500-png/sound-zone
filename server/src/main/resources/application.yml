@@ -1,0 +1,47 @@
+# ===================== 服务基础 =====================
+server:
+  port: 8080
+  servlet:
+    # 统一 /api 前缀，与前端 api 层约定一致（app/src/api/mock.js）
+    context-path: /api
+
+spring:
+  application:
+    name: sound-zone-server
+
+  # ===================== 数据源 =====================
+  # Demo 使用 H2 内存库，启动即建表（JPA ddl-auto）
+  datasource:
+    url: jdbc:h2:mem:soundzone;DB_CLOSE_DELAY=-1;MODE=MySQL
+    driver-class-name: org.h2.Driver
+    username: sa
+    password: ""
+
+  # H2 控制台：http://localhost:8080/api/h2-console（仅 Demo 开启）
+  h2:
+    console:
+      enabled: true
+      path: /h2-console
+
+  # ===================== JPA =====================
+  jpa:
+    hibernate:
+      ddl-auto: update
+    open-in-view: false
+    properties:
+      hibernate:
+        format_sql: false
+
+# ===================== 生产环境数据源示例（PostgreSQL，docs/05）=====================
+# spring:
+#   datasource:
+#     url: jdbc:postgresql://localhost:5432/soundzone
+#     username: soundzone
+#     password: ${DB_PASSWORD}
+#   jpa:
+#     hibernate:
+#       ddl-auto: validate
+
+logging:
+  level:
+    com.soundzone: info

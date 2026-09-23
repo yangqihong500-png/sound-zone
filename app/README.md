@@ -53,3 +53,19 @@ app/
 - 数据为本地 mock（`api/mock.js`），接口形态与后端约定一致
 - 封面/碎片图片用色块占位，后续接腾讯云 COS
 - 点歌/发碎片为 Toast 占位，真实交互走 WebSocket（见 docs/05 接入层设计）
+
+## 常见问题
+
+**HBuilderX 运行报 `Cannot find module @rollup/rollup-darwin-arm64` 或 esbuild 平台/版本不匹配**
+原因：本项目依赖是用 x64 架构的 Node 安装的（终端 Node 走 Rosetta），而 HBuilderX 内置 arm64 原生 Node，需要各原生包的 arm64 版本，且**版本必须与主包严格一致**。
+修复（重装 node_modules 后需重跑；注意 esbuild 必须钉版本）：
+
+```bash
+# 先查三个主包的版本
+node -p "['esbuild','rollup','@parcel/watcher'].map(p=>p+': '+require('./node_modules/'+p+'/package.json').version).join('\n')"
+
+# 再按查到的版本号安装对应原生包（下面是当前版本，以实际查询为准）
+npm i @esbuild/darwin-arm64@0.20.2 @rollup/rollup-darwin-arm64@4.63.4 @parcel/watcher-darwin-arm64@2.6.0 --no-save --force
+```
+
+两个架构的原生包可以共存，互不影响。验证方式：`PATH="/usr/local/bin:$PATH" node node_modules/.bin/uni build`（用系统 arm64 Node 模拟 HBuilderX 环境构建）。
