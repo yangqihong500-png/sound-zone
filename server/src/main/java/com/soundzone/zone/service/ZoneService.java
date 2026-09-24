@@ -48,14 +48,14 @@ public class ZoneService {
      * 场景名归一化映射（docs/02 第 1 步）
      * 【假设】Demo 用静态映射表；正式版为文本聚类模型（docs/03 场景归一化）
      */
-    private static final Map<String, String> SCENE_ALIASES = Map.of(
-            "自习室", "自习", "图书馆刷题", "自习", "考研", "自习",
-            "夜跑", "健身", "健身房", "健身", "铁馆", "健身",
-            "solo trip", "旅行", "旅游", "旅行",
-            "拼豆", "手工", "手作", "手工",
-            "写代码", "工作", "加班", "工作",
-            "深夜", "深夜", "睡前", "深夜"
-    );
+        private static final Map<String, String> SCENE_ALIASES = Map.ofEntries(
+            Map.entry("自习室", "自习"), Map.entry("图书馆刷题", "自习"), Map.entry("考研", "自习"),
+            Map.entry("夜跑", "健身"), Map.entry("健身房", "健身"), Map.entry("铁馆", "健身"),
+            Map.entry("solo trip", "旅行"), Map.entry("旅游", "旅行"),
+            Map.entry("拼豆", "手工"), Map.entry("手作", "手工"),
+            Map.entry("写代码", "工作"), Map.entry("加班", "工作"),
+            Map.entry("深夜", "深夜"), Map.entry("睡前", "深夜")
+        );
 
     /** 首页/发现页：只推活跃的公开域（决议 D2：私密域不参与分发），按同频人数排序 */
     public List<ZoneSummaryDTO> listActive(String scene) {
@@ -83,8 +83,9 @@ public class ZoneService {
         zone.setScene(normalizeScene(req.scene()));
         zone.setHost(host);
         if (req.coverColor() != null) zone.setCoverColor(req.coverColor());
-        if (req.tags() != null) zone.setTags(req.tags());
-        if (req.filterTags() != null) zone.setFilterTags(req.filterTags());
+        // @ElementCollection 字段须写入可变集合（request record 传入的是不可变集合）
+        if (req.tags() != null) zone.getTags().addAll(req.tags());
+        if (req.filterTags() != null) zone.getFilterTags().addAll(req.filterTags());
         if (req.filterMode() != null) zone.setFilterMode(FilterMode.valueOf(req.filterMode().toUpperCase()));
 
         // 可见性（决议 D2）：私密域需要密码或自动生成邀请码
@@ -110,7 +111,7 @@ public class ZoneService {
                 period.setOrderIndex(p.orderIndex());
                 period.setDurationMin(p.durationMin());
                 period.setType(PeriodType.valueOf(p.type().toUpperCase()));
-                if (p.allowedTags() != null) period.setAllowedTags(p.allowedTags());
+                if (p.allowedTags() != null) period.getAllowedTags().addAll(p.allowedTags());
                 return period;
             }).toList();
             periodRepository.saveAll(periods);

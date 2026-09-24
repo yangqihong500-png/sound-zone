@@ -123,7 +123,8 @@ public class DataInitializer implements CommandLineRunner {
         t.setTitle(title);
         t.setArtist(artist);
         t.setCoverColor(color);
-        t.setTags(tags);
+        // 【关键】@ElementCollection 字段必须用可变集合，Set.of 返回不可变集合会导致 Hibernate merge 时 UnsupportedOperationException
+        t.getTags().addAll(tags);
         return trackRepository.save(t);
     }
 
@@ -138,8 +139,8 @@ public class DataInitializer implements CommandLineRunner {
         z.setListenerCount(listeners);
         z.setVisibility(visibility);
         z.setFilterMode(filterMode);
-        z.setTags(tags);
-        z.setFilterTags(filterTags);
+        z.getTags().addAll(tags);
+        z.getFilterTags().addAll(filterTags);
         z.setStatus(ZoneStatus.ACTIVE);
         return zoneRepository.save(z);
     }
@@ -150,7 +151,7 @@ public class DataInitializer implements CommandLineRunner {
         p.setOrderIndex(order);
         p.setDurationMin(duration);
         p.setType(type);
-        p.setAllowedTags(allowed);
+        p.getAllowedTags().addAll(allowed);
         periodRepository.save(p);
     }
 
