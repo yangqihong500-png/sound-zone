@@ -3,7 +3,9 @@
     "pages/index/index",
     "pages/zone/list",
     "pages/user/index",
-    "pages/zone/detail"
+    "pages/zone/detail",
+    "pages/zone/create",
+    "pages/zone/moments"
   ],
   "window": {
     "navigationBarTextStyle": "black",

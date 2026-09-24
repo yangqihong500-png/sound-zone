@@ -1,12 +1,23 @@
 <template>
-  <!-- 碎片卡片：图片占位 + 文案 + 自动绑定的配乐（数据飞轮的三元组） -->
-  <view class="moment-card">
-    <view class="moment-card__image" :style="{ backgroundColor: moment.color }" />
+  <!-- 图片分享卡片 v2：图片与歌曲关联 + 上传者 + 可撤回（本人） -->
+  <view class="moment-card sz-card">
+    <image
+      v-if="moment.imageUrl"
+      class="moment-card__image"
+      :src="moment.imageUrl"
+      mode="aspectFill"
+    />
+    <view v-else class="moment-card__image" :style="{ backgroundColor: moment.color }" />
     <view class="moment-card__body">
-      <text class="moment-card__text">{{ moment.text }}</text>
+      <view class="moment-card__user">
+        <view class="moment-card__avatar">{{ moment.user[0].toUpperCase() }}</view>
+        <text class="moment-card__name">{{ moment.user }}</text>
+        <text v-if="own" class="moment-card__withdraw" @click.stop="$emit('withdraw', moment.id)">撤回</text>
+      </view>
+      <text v-if="moment.text" class="moment-card__text">{{ moment.text }}</text>
       <view class="moment-card__meta">
         <text class="moment-card__track">♪ {{ moment.track }}</text>
-        <text class="moment-card__time">{{ moment.time }}</text>
+        <text class="moment-card__time">{{ formatTime(moment.time) }}</text>
       </view>
     </view>
   </view>
@@ -14,34 +25,74 @@
 
 <script setup>
 /**
- * MomentCard 碎片卡片组件
- * @prop {Object} moment { id, text, track, time, color }
- * 每条碎片 = (场景, 图/文, 配乐) 三元组 —— 数据飞轮的源头（docs/03）
- * Demo 阶段图片用色块占位，真实版本接腾讯云 COS
+ * MomentCard 图片分享卡片（v2：2026-09-24 决议 D6）
+ * @prop {Object} moment { id, userId, user, imageUrl, color, text, track, time }
+ * @prop {Boolean} own 是否本人分享（显示撤回按钮）
+ * @emit withdraw(id) 撤回事件
+ * 每条分享 = (场景, 图片, 关联歌曲) 三元组 —— 数据飞轮源头（docs/03）
  */
 defineProps({
   moment: { type: Object, required: true },
+  own: { type: Boolean, default: false },
 })
+
+defineEmits(['withdraw'])
+
+function formatTime(ts) {
+  const d = new Date(ts)
+  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
+}
 </script>
 
 <style lang="scss" scoped>
 .moment-card {
-  background-color: $sz-card;
-  border-radius: $sz-radius-md;
+  padding: 0;
   overflow: hidden;
 
   &__image {
     width: 100%;
-    height: 180rpx;
+    height: 200rpx;
+    display: block;
   }
 
   &__body {
     padding: 12rpx 16rpx;
   }
 
+  &__user {
+    display: flex;
+    align-items: center;
+    gap: 10rpx;
+  }
+
+  &__avatar {
+    width: 36rpx;
+    height: 36rpx;
+    border-radius: 50%;
+    background-color: $sz-accent;
+    color: #ffffff;
+    font-size: $sz-font-xs;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  &__name {
+    font-size: $sz-font-xs;
+    color: $sz-text-secondary;
+    flex: 1;
+  }
+
+  /* 撤回按钮：轻量不突出（决议 D6） */
+  &__withdraw {
+    font-size: $sz-font-xs;
+    color: $sz-text-tertiary;
+  }
+
   &__text {
     font-size: $sz-font-sm;
     display: block;
+    margin-top: 6rpx;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -55,7 +106,7 @@ defineProps({
 
   &__track {
     font-size: $sz-font-xs;
-    color: $sz-primary-dark;
+    color: $sz-accent;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;

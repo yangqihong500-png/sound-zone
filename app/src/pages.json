@@ -33,6 +33,20 @@
         "navigationBarTitleText": "域详情",
         "navigationStyle": "custom"
       }
+    },
+    {
+      "path": "pages/zone/create",
+      "style": {
+        "navigationBarTitleText": "创建新域",
+        "navigationStyle": "custom"
+      }
+    },
+    {
+      "path": "pages/zone/moments",
+      "style": {
+        "navigationBarTitleText": "动态",
+        "navigationStyle": "custom"
+      }
     }
   ],
   "globalStyle": {

@@ -1,163 +1,260 @@
 /**
- * api/mock.js —— Demo 阶段数据层
+ * api/mock.js —— Demo 阶段数据层（v2：2026-09-24 第二次会议）
  *
- * 当前全部为本地模拟数据，接口形态与后端（FastAPI，见 docs/05）约定一致：
- * 后端就绪后，仅需把各函数体替换为 uni.request / WebSocket 调用，
- * 页面与组件无需任何改动。
+ * 当前为本地模拟数据，接口形态与后端（Spring Boot，server/）约定一致：
+ * 联调时仅需把各函数体替换为 uni.request('/api' + 对应路径)，页面与组件无需改动。
  *
- * 数据结构设计依据：docs/01（域三件套）、docs/02（队列/审美反馈）
+ * v2 模型要点：FIFO 队列 / 10 分钟上传冷却 / 标签五类+过滤双模式 /
+ * 公开私密域 / 图片绑定上传歌曲+撤回+半小时流 / 关注 / 无歌品值
  */
 
-/** 场景分类（发现页筛选用），与"场景标签归一化"对应 */
-export const SCENES = ['全部', '自习', '健身', '旅行', '手工', '工作', '深夜']
+const MIN = 60 * 1000
 
-/** 模拟域列表 */
+/** 场景分类（首页上滑标签栏 / 发现页），决议 D9 */
+export const SCENES = ['全部', '音乐', '学习', '健身', '旅行', '日系', '电子', '城市', '深夜']
+
+/** 标签目录（五类，决议 D5），创建域页分组展示 */
+export const TAG_CATALOG = {
+  语言: ['华语', '粤语', '日语', '韩语', '英语', '纯音乐'],
+  年代: ['70s', '80s', '90s', '00s', '10s', '20s'],
+  风格: ['流行', '摇滚', '电子', '说唱', '民谣', '爵士', '古典', 'City Pop', 'Lo-Fi', '抖音热曲'],
+  场景: ['自习', '健身', '旅行', '通勤', '睡前', '工作', '手工'],
+  情绪: ['舒缓', '治愈', '亢奋', '忧郁', '情歌', '专注'],
+}
+
+/** 曲库（上传歌曲弹窗搜索源） */
+const TRACKS = [
+  { id: 1, title: 'Lemon', artist: '米津玄師', coverColor: '#a8b8c8', tags: ['日语', '10s', '流行', '舒缓'] },
+  { id: 2, title: 'キセキ', artist: 'GReeeeN', coverColor: '#b5c4d4', tags: ['日语', '00s', '流行', '治愈'] },
+  { id: 3, title: '夜に駆ける', artist: 'YOASOBI', coverColor: '#c3b8d9', tags: ['日语', '20s', '流行', '抖音热曲'] },
+  { id: 4, title: 'River Flows in You', artist: 'Yiruma', coverColor: '#c9d4c5', tags: ['纯音乐', '00s', '古典', '舒缓', '自习'] },
+  { id: 5, title: 'Midnight City', artist: 'M83', coverColor: '#d9c3b8', tags: ['英语', '10s', '电子', '亢奋', '健身'] },
+  { id: 6, title: 'Blinding Lights', artist: 'The Weeknd', coverColor: '#e3c9d4', tags: ['英语', '20s', '电子', '流行', '健身'] },
+  { id: 7, title: 'Plastic Love', artist: '竹内まりや', coverColor: '#b8cdd9', tags: ['日语', '80s', 'City Pop', '旅行'] },
+  { id: 8, title: '真夜中のドア', artist: '松原みき', coverColor: '#d9cfb8', tags: ['日语', '70s', 'City Pop', '深夜'] },
+  { id: 9, title: 'Clair de Lune', artist: 'Debussy', coverColor: '#e3c9cd', tags: ['纯音乐', '古典', '舒缓', '睡前'] },
+  { id: 10, title: 'Lose Yourself', artist: 'Eminem', coverColor: '#a9c4b5', tags: ['英语', '00s', '说唱', '亢奋', '健身'] },
+]
+
+/** 当前用户（Demo 固定，无歌品值——2026-09-24 去游戏化） */
+const USER = {
+  id: 'me',
+  name: 'octave',
+  avatarColor: '#8c9bab',
+  stats: { uploads: 12, likes: 47, moments: 6, following: 3 },
+}
+
+/** 域数据（stateful：上传/图片/冷却会真实改变状态，用于演示新机制） */
 const ZONES = [
   {
     id: 1,
     name: '考研自习室',
-    scene: '自习',
+    scene: '学习',
+    visibility: 'PUBLIC',
     listeners: 87,
     host: '白桃乌龙',
-    coverColor: '#9FE1CB',
-    tags: ['舒缓', '纯音乐'],
-    bannedTags: ['抖音热曲', '情歌'],
-    nowPlaying: { title: 'Lemon', artist: '米津玄師', by: '小鹿', progress: 62 },
+    coverColor: '#a8b8c8',
+    tags: ['舒缓', '专注'],
+    filterMode: 'BAN',
+    filterTags: ['抖音热曲', '亢奋'],
+    nowPlaying: { trackId: 1, title: 'Lemon', artist: '米津玄師', by: 'octave', progress: 62 },
     queue: [
-      { rank: 1, title: 'キセキ', artist: 'GReeeeN', likes: 24, by: '阿澈' },
-      { rank: 2, title: '夜に駆ける', artist: 'YOASOBI', likes: 19, by: 'Momo' },
-      { rank: 3, title: 'River Flows in You', artist: 'Yiruma', likes: 15, by: '白桃乌龙' },
+      { itemId: 101, title: 'キセキ', artist: 'GReeeeN', likes: 24, by: '白桃乌龙' },
+      { itemId: 102, title: '夜に駆ける', artist: 'YOASOBI', likes: 19, by: 'octave' },
+      { itemId: 103, title: 'River Flows in You', artist: 'Yiruma', likes: 15, by: '白桃乌龙' },
     ],
     moments: [
-      { id: 1, text: '图书馆 19:20', track: 'Lemon', time: '19:20', color: '#B5D4F4' },
-      { id: 2, text: '刷完这套题就睡', track: 'キセキ', time: '19:05', color: '#F5C4B3' },
-      { id: 3, text: '今天也是满座', track: 'River Flows in You', time: '18:47', color: '#C0DD97' },
-      { id: 4, text: '咖啡续命中', track: 'Lemon', time: '18:12', color: '#F4C0D1' },
+      { id: 1, userId: 'me', user: 'octave', color: '#b5c4d4', track: 'Lemon', time: Date.now() - 12 * MIN },
+      { id: 2, userId: 'u2', user: '白桃乌龙', color: '#c9d4c5', text: '今天也是满座', track: 'キセキ', time: Date.now() - 5 * MIN },
+      { id: 3, userId: 'u3', user: '阿澈', color: '#d9cfb8', text: '咖啡续命中', track: 'Lemon', time: Date.now() - 22 * MIN },
     ],
+    lastUploadAt: { me: Date.now() - 6 * MIN }, // 演示冷却：还剩约 4 分钟
   },
   {
     id: 2,
     name: '夜跑俱乐部',
     scene: '健身',
+    visibility: 'PUBLIC',
     listeners: 45,
     host: '配速430',
-    coverColor: '#F0997B',
-    tags: ['电子', '节奏'],
-    bannedTags: ['舒缓'],
-    nowPlaying: { title: 'Midnight City', artist: 'M83', by: '北巷', progress: 35 },
-    queue: [
-      { rank: 1, title: 'Blinding Lights', artist: 'The Weeknd', likes: 21, by: '配速430' },
-      { rank: 2, title: 'Stronger', artist: 'Kanye West', likes: 17, by: '北巷' },
-    ],
+    coverColor: '#a9c4b5',
+    tags: ['电子', '亢奋'],
+    filterMode: 'ALLOW',
+    filterTags: ['电子', '亢奋', '健身'],
+    nowPlaying: { trackId: 5, title: 'Midnight City', artist: 'M83', by: '配速430', progress: 35 },
+    queue: [{ itemId: 201, title: 'Blinding Lights', artist: 'The Weeknd', likes: 21, by: '配速430' }],
     moments: [
-      { id: 1, text: '珠江边 5km 打卡', track: 'Midnight City', time: '20:15', color: '#F0997B' },
-      { id: 2, text: '今晚风很舒服', track: 'Blinding Lights', time: '19:58', color: '#85B7EB' },
+      { id: 4, userId: 'u4', user: '配速430', color: '#d9c3b8', text: '珠江边 5km 打卡', track: 'Midnight City', time: Date.now() - 8 * MIN },
     ],
+    lastUploadAt: {},
   },
   {
     id: 3,
-    name: '日本 solo trip',
+    name: '京都深夜',
     scene: '旅行',
-    listeners: 62,
+    visibility: 'PRIVATE',
+    listeners: 12,
     host: '京都慢一点',
-    coverColor: '#85B7EB',
-    tags: ['City Pop', '日系'],
-    bannedTags: ['抖音热曲'],
-    nowPlaying: { title: 'Plastic Love', artist: '竹内まりや', by: '京都慢一点', progress: 48 },
-    queue: [
-      { rank: 1, title: '真夜中のドア', artist: '松原みき', likes: 28, by: '旅人K' },
-      { rank: 2, title: 'First Love', artist: '宇多田ヒカル', likes: 22, by: 'Sakura' },
-    ],
+    coverColor: '#b8cdd9',
+    tags: ['City Pop', '日语'],
+    filterMode: 'BAN',
+    filterTags: ['抖音热曲'],
+    nowPlaying: { trackId: 7, title: 'Plastic Love', artist: '竹内まりや', by: '京都慢一点', progress: 48 },
+    queue: [{ itemId: 301, title: '真夜中のドア', artist: '松原みき', likes: 28, by: '京都慢一点' }],
     moments: [
-      { id: 1, text: '鸭川的黄昏', track: 'Plastic Love', time: '18:40', color: '#85B7EB' },
-      { id: 2, text: '便利店饭团晚餐', track: '真夜中のドア', time: '17:55', color: '#FAC775' },
+      { id: 5, userId: 'u5', user: '京都慢一点', color: '#b8cdd9', text: '鸭川的黄昏', track: 'Plastic Love', time: Date.now() - 3 * MIN },
     ],
-  },
-  {
-    id: 4,
-    name: '拼豆手作坊',
-    scene: '手工',
-    listeners: 23,
-    host: '豆豆本豆',
-    coverColor: '#F4C0D1',
-    tags: ['轻音乐', '治愈'],
-    bannedTags: ['重金属'],
-    nowPlaying: { title: 'Clair de Lune', artist: 'Debussy', by: '豆豆本豆', progress: 71 },
-    queue: [{ rank: 1, title: 'Gymnopédie No.1', artist: 'Erik Satie', likes: 12, by: '慢半拍' }],
-    moments: [{ id: 1, text: '星之卡比完工！', track: 'Clair de Lune', time: '16:30', color: '#F4C0D1' }],
-  },
-  {
-    id: 5,
-    name: '深夜写代码',
-    scene: '深夜',
-    listeners: 39,
-    host: 'NullPointer',
-    coverColor: '#AFA9EC',
-    tags: ['Lo-Fi', '轻电子'],
-    bannedTags: ['情歌', '抖音热曲'],
-    nowPlaying: { title: 'Snowfall', artist: 'Øneheart', by: 'Refactor', progress: 55 },
-    queue: [
-      { rank: 1, title: 'weightless', artist: 'Marconi Union', likes: 16, by: 'NullPointer' },
-      { rank: 2, title: 'Midnight', artist: 'Jinsang', likes: 11, by: 'Refactor' },
-    ],
-    moments: [
-      { id: 1, text: 'bug 终于修了', track: 'Snowfall', time: '23:40', color: '#AFA9EC' },
-      { id: 2, text: '再写最后一个需求', track: 'Midnight', time: '23:02', color: '#B4B2A9' },
-    ],
-  },
-  {
-    id: 6,
-    name: '健身铁馆',
-    scene: '健身',
-    listeners: 51,
-    host: '卧推100',
-    coverColor: '#97C459',
-    tags: ['摇滚', '说唱'],
-    bannedTags: ['舒缓', '纯音乐'],
-    nowPlaying: { title: 'Eye of the Tiger', artist: 'Survivor', by: '大重量小李', progress: 40 },
-    queue: [
-      { rank: 1, title: 'Lose Yourself', artist: 'Eminem', likes: 26, by: '卧推100' },
-      { rank: 2, title: 'Believer', artist: 'Imagine Dragons', likes: 18, by: '大重量小李' },
-    ],
-    moments: [{ id: 1, text: '新 PR！', track: 'Lose Yourself', time: '19:45', color: '#97C459' }],
+    lastUploadAt: {},
   },
 ]
 
-/** 当前登录用户（Demo 固定） */
-const USER = {
-  name: 'octave',
-  avatarColor: '#31C27C',
-  tasteScore: 86, // 歌品值 = 点歌被点赞率（docs/02 成长体系）
-  stats: { requests: 32, likes: 214, moments: 18 },
-}
+// ---------- 查询 ----------
 
-/** 获取此刻活跃的域列表（首页/发现页） */
 export function getActiveZones() {
-  return Promise.resolve(ZONES)
+  // 只推公开域（决议 D2：私密域不参与分发）
+  return Promise.resolve(ZONES.filter((z) => z.visibility === 'PUBLIC'))
 }
 
-/** 按场景筛选域 */
 export function getZonesByScene(scene) {
-  if (!scene || scene === '全部') return Promise.resolve(ZONES)
-  return Promise.resolve(ZONES.filter((z) => z.scene === scene))
+  const publicZones = ZONES.filter((z) => z.visibility === 'PUBLIC')
+  if (!scene || scene === '全部') return Promise.resolve(publicZones)
+  return Promise.resolve(publicZones.filter((z) => z.scene === scene))
 }
 
-/** 获取域详情（含播放中/队列/碎片墙） */
 export function getZoneDetail(id) {
   const zone = ZONES.find((z) => z.id === Number(id))
-  return Promise.resolve(zone || null)
+  return Promise.resolve(zone ? JSON.parse(JSON.stringify(zone)) : null)
 }
 
-/** 获取当前用户信息（我的页） */
 export function getCurrentUser() {
   return Promise.resolve(USER)
 }
 
+// ---------- 创建域（创建域页） ----------
+
+export function createZone(req) {
+  // req: { name, scene, tags, filterMode, filterTags, visibility, password }
+  const zone = {
+    id: Date.now(),
+    name: req.name,
+    scene: req.scene,
+    visibility: req.visibility || 'PUBLIC',
+    listeners: 1,
+    host: USER.name,
+    coverColor: req.coverColor || '#a8b8c8',
+    tags: req.tags || [],
+    filterMode: req.filterMode || 'BAN',
+    filterTags: req.filterTags || [],
+    nowPlaying: null,
+    queue: [],
+    moments: [],
+    lastUploadAt: {},
+  }
+  ZONES.push(zone)
+  return Promise.resolve(zone)
+}
+
+// ---------- 上传歌曲（冷却 + 过滤 + FIFO） ----------
+
+/** 冷却剩余秒数（决议 D4：单用户单域 10 分钟 1 首） */
+export function getCooldown(zoneId) {
+  const zone = ZONES.find((z) => z.id === Number(zoneId))
+  const last = zone?.lastUploadAt?.me
+  if (!last) return Promise.resolve(0)
+  const remain = 10 * MIN - (Date.now() - last)
+  return Promise.resolve(Math.max(0, Math.ceil(remain / 1000)))
+}
+
+/** 曲库搜索（上传歌曲弹窗） */
+export function searchTracks(keyword) {
+  if (!keyword) return Promise.resolve(TRACKS)
+  const kw = keyword.toLowerCase()
+  return Promise.resolve(
+    TRACKS.filter((t) => t.title.toLowerCase().includes(kw) || t.artist.toLowerCase().includes(kw))
+  )
+}
+
 /**
- * 点歌（Demo：仅模拟成功返回）
- * 真实实现：POST /zones/{id}/queue → 服务端黑名单/白名单校验 → WS 广播
+ * 上传歌曲：① 冷却校验 → ② 域级过滤（BAN/ALLOW）→ ③ 入队尾 FIFO
+ * 返回 { code, message, queueItem }
  */
-export function requestSong(zoneId, keyword) {
-  console.log(`[mock] 域 ${zoneId} 收到点歌：${keyword}`)
-  return Promise.resolve({ code: 0, message: '已加入队列' })
+export function uploadSong(zoneId, trackId) {
+  const zone = ZONES.find((z) => z.id === Number(zoneId))
+  const track = TRACKS.find((t) => t.id === Number(trackId))
+  if (!zone || !track) return Promise.resolve({ code: 2001, message: '域或歌曲不存在' })
+
+  // ① 冷却（决议 D4）
+  const last = zone.lastUploadAt.me
+  if (last && Date.now() - last < 10 * MIN) {
+    const remain = Math.ceil((10 * MIN - (Date.now() - last)) / 1000)
+    return Promise.resolve({ code: 3005, message: `冷却剩余 ${remain} 秒`, remainSeconds: remain })
+  }
+
+  // ② 过滤双模式（决议 D5）
+  const hit = track.tags.some((t) => zone.filterTags.includes(t))
+  if (zone.filterMode === 'BAN' && hit) {
+    return Promise.resolve({ code: 3002, message: `「${track.title}」的标签被本域禁止` })
+  }
+  if (zone.filterMode === 'ALLOW' && !hit) {
+    return Promise.resolve({ code: 3009, message: `「${track.title}」不在本域允许范围内` })
+  }
+
+  // ③ 入队尾（FIFO）
+  const item = { itemId: Date.now(), title: track.title, artist: track.artist, likes: 0, by: USER.name }
+  zone.queue.push(item)
+  zone.lastUploadAt.me = Date.now()
+  return Promise.resolve({ code: 0, message: '已加入歌单', queueItem: item })
+}
+
+// ---------- 图片分享（绑定歌曲 + 半小时流 + 撤回） ----------
+
+/** 发布图片分享：绑定当前播放或指定歌曲（决议 D6） */
+export function uploadImage(zoneId, { imageUrl, color, trackTitle, text }) {
+  const zone = ZONES.find((z) => z.id === Number(zoneId))
+  if (!zone) return Promise.resolve({ code: 2001, message: '域不存在' })
+  const moment = {
+    id: Date.now(),
+    userId: USER.id,
+    user: USER.name,
+    imageUrl: imageUrl || null,
+    color: color || '#b5c4d4',
+    text: text || null,
+    track: trackTitle || zone.nowPlaying?.title || null,
+    time: Date.now(),
+  }
+  zone.moments.unshift(moment)
+  return Promise.resolve({ code: 0, moment })
+}
+
+/** 动态详情页：半小时内图片流（时间倒序） */
+export function getMomentFeed(zoneId) {
+  const zone = ZONES.find((z) => z.id === Number(zoneId))
+  if (!zone) return Promise.resolve([])
+  const cutoff = Date.now() - 30 * MIN
+  return Promise.resolve(zone.moments.filter((m) => m.time >= cutoff))
+}
+
+/** 撤回自己的图片（仅本人，决议 D6） */
+export function withdrawMoment(zoneId, momentId) {
+  const zone = ZONES.find((z) => z.id === Number(zoneId))
+  if (!zone) return Promise.resolve({ code: 2001, message: '域不存在' })
+  zone.moments = zone.moments.filter((m) => !(m.id === momentId && m.userId === USER.id))
+  return Promise.resolve({ code: 0 })
+}
+
+// ---------- 互动与关注 ----------
+
+/** 收藏当前播放（触发上传者微光提示——Demo 用 Toast 模拟） */
+export function collectTrack(zoneId, trackId) {
+  console.log(`[mock] 域 ${zoneId} 收藏歌曲 ${trackId}，上传者将收到微光提示`)
+  return Promise.resolve({ code: 0 })
+}
+
+const following = new Set(['白桃乌龙', '京都慢一点'])
+export function isFollowing(name) {
+  return Promise.resolve(following.has(name))
+}
+export function toggleFollow(name) {
+  following.has(name) ? following.delete(name) : following.add(name)
+  return Promise.resolve(following.has(name))
 }

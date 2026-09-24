@@ -1,25 +1,21 @@
 <template>
   <view class="page">
-    <!-- 歌品值卡片：审美身份证（docs/02 成长体系） -->
+    <!-- 用户卡片 v2：功能型主页（去游戏化，无歌品值——2026-09-24 决议 D7） -->
     <view class="profile sz-card">
       <view class="profile__avatar" :style="{ backgroundColor: user.avatarColor }">
         <text class="profile__avatar-text">{{ user.name[0].toUpperCase() }}</text>
       </view>
       <view class="profile__info">
         <text class="profile__name">{{ user.name }}</text>
-        <text class="profile__slogan">我的审美身份证</text>
-      </view>
-      <view class="profile__score">
-        <text class="profile__score-num">{{ user.tasteScore }}</text>
-        <text class="profile__score-label">歌品值</text>
+        <text class="profile__slogan">在同频的人里，找到同审美的人</text>
       </view>
     </view>
 
-    <!-- 数据概览 -->
+    <!-- 行为统计：上传/获赞/分享/关注（纯行为数据，非积分等级） -->
     <view class="stats sz-card">
       <view class="stats__item">
-        <text class="stats__num">{{ user.stats.requests }}</text>
-        <text class="stats__label">点歌</text>
+        <text class="stats__num">{{ user.stats.uploads }}</text>
+        <text class="stats__label">上传</text>
       </view>
       <view class="stats__item">
         <text class="stats__num">{{ user.stats.likes }}</text>
@@ -27,7 +23,11 @@
       </view>
       <view class="stats__item">
         <text class="stats__num">{{ user.stats.moments }}</text>
-        <text class="stats__label">碎片</text>
+        <text class="stats__label">分享</text>
+      </view>
+      <view class="stats__item">
+        <text class="stats__num">{{ user.stats.following }}</text>
+        <text class="stats__label">关注</text>
       </view>
     </view>
 
@@ -43,15 +43,16 @@
 
 <script setup>
 /**
- * 我的（tabBar 页）
- * 展示歌品值与行为统计；真实数据来自反馈服务聚合（docs/02 审美反馈机制）
+ * 我的（tabBar 页）v2：2026-09-24 决议 D7 去游戏化
+ * 功能型主页：行为统计（上传/获赞/分享/关注）+ 功能入口
+ * v1 的「歌品值」体系已取消，不再展示任何积分/等级/勋章
  */
 import { ref } from 'vue'
 import { onLoad } from '@dcloudio/uni-app'
 import { getCurrentUser } from '@/api/mock.js'
 
-const user = ref({ name: '', avatarColor: '#31C27C', tasteScore: 0, stats: {} })
-const menus = ['我的域', '我的碎片', '审美报告', '设置']
+const user = ref({ name: '', avatarColor: '#8c9bab', stats: {} })
+const menus = ['我的域', '我的上传', '我的关注', '我的收藏', '设置']
 
 onLoad(async () => {
   user.value = await getCurrentUser()
@@ -103,23 +104,6 @@ function onMenu(item) {
   &__slogan {
     font-size: $sz-font-xs;
     color: $sz-text-tertiary;
-  }
-
-  &__score {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-  }
-
-  &__score-num {
-    font-size: 48rpx;
-    font-weight: 500;
-    color: $sz-primary;
-  }
-
-  &__score-label {
-    font-size: $sz-font-xs;
-    color: $sz-text-secondary;
   }
 }
 

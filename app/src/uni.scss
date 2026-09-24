@@ -1,37 +1,49 @@
 /**
- * uni.scss —— 全局设计令牌（Design Tokens）
+ * uni.scss —— 全局设计令牌（Design Tokens）v2
  * 由框架自动注入每个组件的 <style lang="scss">，无需手动 import
- * 视觉方向参考 docs/01：苹果式极简、统一
+ * 视觉规范：2026-09-24 第二次会议定稿（docs/01 视觉规范）
+ * 日式简约 · 苹果风克制留白 · 黑白灰低饱和冷调 · 莫兰迪主题色 · 玻璃拟态
  */
 
-/* 品牌色：TME 生态绿（QQ音乐绿），直播/红心用强调色 */
-$sz-primary: #31c27c;
-$sz-primary-dark: #27a568;
-$sz-primary-light: #e8f9f0;
-$sz-accent: #ff5a5f;
+/* ========== 基础色：黑白灰低饱和冷调 ========== */
+$sz-bg: #f5f6f7;              /* 页面底色：浅灰 */
+$sz-card: #ffffff;            /* 普通卡片 */
+$sz-glass-bg: rgba(255, 255, 255, 0.65);   /* 玻璃卡片半透明底 */
+$sz-glass-border: rgba(255, 255, 255, 0.6);/* 玻璃卡片边缘高光 */
 
-/* 文本 */
-$sz-text: #1a1a1a;
-$sz-text-secondary: #666666;
-$sz-text-tertiary: #999999;
+/* ========== 文字 ========== */
+$sz-text: #1c1c1e;                       /* 主文字：黑 */
+$sz-text-secondary: #4a4a4c;             /* 次级：深灰 */
+$sz-text-tertiary: rgba(0, 0, 0, 0.45);  /* 提示：半透明黑 */
 
-/* 背景 */
-$sz-bg: #f7f8fa;
-$sz-card: #ffffff;
+/* ========== 强调色 ========== */
+$sz-primary: #3a3a3c;         /* 炭灰：主操作按钮（高对比但不过饱和） */
+$sz-accent: #8c9bab;          /* 冷灰蓝：默认点缀 */
 
-/* 圆角（rpx 适配多端） */
+/* ========== 莫兰迪主题色（按域主题，低饱和） ========== */
+$sz-morandi-study: #a8b8c8;   /* 学习域：浅灰蓝 */
+$sz-morandi-fitness: #a9c4b5; /* 健身域：低饱和青绿 */
+$sz-morandi-travel: #d9cfb8;  /* 旅行域：浅沙色 */
+$sz-morandi-jpop: #e3c9cd;    /* 日系域：浅樱粉 */
+$sz-morandi-night: #c3b8d9;   /* 深夜域：灰紫 */
+
+/* ========== 圆角（统一大圆角） ========== */
 $sz-radius-sm: 8rpx;
-$sz-radius-md: 16rpx;
-$sz-radius-lg: 24rpx;
+$sz-radius-md: 20rpx;
+$sz-radius-lg: 28rpx;
 
-/* 字号 */
+/* ========== 字号（正文偏小但可读） ========== */
 $sz-font-xs: 22rpx;
 $sz-font-sm: 26rpx;
 $sz-font-base: 28rpx;
 $sz-font-lg: 32rpx;
 $sz-font-xl: 40rpx;
 
-/* 间距 */
+/* ========== 间距（大量留白） ========== */
 $sz-gap-sm: 16rpx;
 $sz-gap-md: 24rpx;
 $sz-gap-lg: 32rpx;
+
+/* ========== 软阴影（极软） ========== */
+$sz-shadow-soft: 0 8rpx 30rpx rgba(0, 0, 0, 0.06);
+$sz-shadow-float: 0 12rpx 40rpx rgba(0, 0, 0, 0.1);

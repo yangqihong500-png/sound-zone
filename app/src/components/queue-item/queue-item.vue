@@ -1,13 +1,13 @@
 <template>
-  <!-- 队列条目：排名 + 曲目 + 点歌人 + 点赞 -->
-  <view class="queue-item">
-    <text class="queue-item__rank">{{ item.rank }}</text>
+  <!-- 歌单条目 v2：FIFO 位次 + 曲目 + 上传者 + 点赞（仅信号）+ 当前播放高亮 -->
+  <view class="queue-item" :class="{ 'queue-item--playing': playing }">
+    <text class="queue-item__rank">{{ playing ? '♪' : rank }}</text>
     <view class="queue-item__info">
       <text class="queue-item__title">{{ item.title }}</text>
-      <text class="queue-item__artist">{{ item.artist }} · @{{ item.by }} 点播</text>
+      <text class="queue-item__artist">{{ item.artist }} · @{{ item.by }} 上传</text>
     </view>
     <view class="queue-item__like" @click.stop="onLike">
-      <text class="queue-item__like-icon" :class="{ liked }">▲</text>
+      <text class="queue-item__like-icon" :class="{ liked }">♡</text>
       <text class="queue-item__like-count" :class="{ liked }">{{ count }}</text>
     </view>
   </view>
@@ -15,15 +15,18 @@
 
 <script setup>
 /**
- * QueueItem 队列条目组件
- * @prop {Object} item { rank, title, artist, likes, by }
- * 点赞为本地态演示；真实实现走 WS：点赞 → 服务端重算队列得分 → 广播
- * （队列得分公式见 docs/02：点赞×2 + 域主加成×3 − 刷屏惩罚×1.5）
+ * QueueItem 歌单条目组件（v2：2026-09-24 会议）
+ * @prop {Object} item { itemId, title, artist, likes, by }
+ * @prop {Number} rank FIFO 等待位次（按上传顺序，决议 D3）
+ * @prop {Boolean} playing 是否当前播放（高亮，决议 D3）
+ * 点赞为互动信号，不再影响播放顺序
  */
 import { ref } from 'vue'
 
 const props = defineProps({
   item: { type: Object, required: true },
+  rank: { type: Number, default: 0 },
+  playing: { type: Boolean, default: false },
 })
 
 const liked = ref(false)
@@ -40,17 +43,23 @@ function onLike() {
   display: flex;
   align-items: center;
   gap: $sz-gap-sm;
-  padding: $sz-gap-sm 0;
-  border-bottom: 1rpx solid $sz-bg;
+  padding: $sz-gap-sm $sz-gap-sm;
+  border-radius: $sz-radius-sm;
 
-  &:last-child {
-    border-bottom: none;
+  /* 当前播放：低饱和主题色轻高亮（决议 D3） */
+  &--playing {
+    background-color: rgba(140, 155, 171, 0.12);
+
+    .queue-item__rank,
+    .queue-item__title {
+      color: $sz-accent;
+      font-weight: 500;
+    }
   }
 
   &__rank {
     width: 48rpx;
-    font-size: $sz-font-lg;
-    font-weight: 500;
+    font-size: $sz-font-base;
     color: $sz-text-tertiary;
     text-align: center;
   }
@@ -80,15 +89,14 @@ function onLike() {
     gap: 6rpx;
     padding: 8rpx 16rpx;
     border-radius: 999rpx;
-    background-color: $sz-bg;
   }
 
   &__like-icon {
-    font-size: $sz-font-xs;
+    font-size: $sz-font-sm;
     color: $sz-text-tertiary;
 
     &.liked {
-      color: $sz-primary;
+      color: $sz-accent;
     }
   }
 
@@ -97,7 +105,7 @@ function onLike() {
     color: $sz-text-secondary;
 
     &.liked {
-      color: $sz-primary;
+      color: $sz-accent;
     }
   }
 }

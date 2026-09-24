@@ -1,114 +1,232 @@
 <template>
   <view v-if="zone" class="detail">
-    <!-- 自定义导航（pages.json 中 navigationStyle: custom） -->
-    <view class="nav" :style="{ paddingTop: statusBarHeight + 'px' }">
+    <!-- 顶部毛玻璃固定栏：返回 / 域名+在线人数 / 更多（决议 D9） -->
+    <view class="nav sz-glass" :style="{ paddingTop: statusBarHeight + 'px' }">
       <view class="nav__back" @click="goBack">‹</view>
       <view class="nav__title">
-        <view class="live-dot" />
-        <text>{{ zone.name }}</text>
+        <text class="nav__name">{{ zone.name }}</text>
+        <text class="nav__listeners">{{ zone.listeners }} 在线</text>
       </view>
-      <text class="nav__listeners">{{ zone.listeners }} 人同频</text>
+      <view class="nav__more" @click="onMore">···</view>
     </view>
 
     <scroll-view class="detail__body" scroll-y>
-      <!-- 域主与风格信息 -->
-      <view class="host-row">
-        <text class="host-row__host">域主 @{{ zone.host }}</text>
-        <view class="host-row__tags">
-          <text v-for="t in zone.tags" :key="t" class="sz-tag">{{ t }}</text>
-        </view>
-      </view>
-      <view v-if="zone.bannedTags.length" class="banned-row">
-        本域禁止：{{ zone.bannedTags.join(' / ') }}
-      </view>
-
-      <!-- 正在播放 -->
-      <view class="now-playing sz-card">
+      <!-- 当前播放区：第一视觉（决议 D9） -->
+      <view v-if="zone.nowPlaying" class="now-playing">
         <view class="now-playing__cover" :style="{ backgroundColor: zone.coverColor }">
           <text class="now-playing__note">♪</text>
         </view>
-        <view class="now-playing__info">
-          <text class="now-playing__title">{{ zone.nowPlaying.title }}</text>
-          <text class="now-playing__artist">{{ zone.nowPlaying.artist }} · @{{ zone.nowPlaying.by }} 点播</text>
-          <progress
-            class="now-playing__progress"
-            :percent="zone.nowPlaying.progress"
-            stroke-width="3"
-            activeColor="#31C27C"
-            backgroundColor="#EEEEEE"
-          />
+        <text class="now-playing__title">{{ zone.nowPlaying.title }}</text>
+        <text class="now-playing__artist">{{ zone.nowPlaying.artist }} · @{{ zone.nowPlaying.by }} 上传</text>
+        <!-- 极细播放进度条；同步播放无复杂控制（决议 D3） -->
+        <progress
+          class="now-playing__progress"
+          :percent="zone.nowPlaying.progress"
+          stroke-width="2"
+          activeColor="#8c9bab"
+          backgroundColor="rgba(0,0,0,0.08)"
+        />
+        <!-- 极简爱心收藏：收藏后上传者收到微光提示（决议 D7） -->
+        <view class="now-playing__heart" :class="{ collected }" @click="onCollect">
+          {{ collected ? '♥' : '♡' }}
         </view>
       </view>
-
-      <!-- 播放队列 -->
-      <view class="section sz-card">
-        <view class="section__header">
-          <text class="section__title">播放队列</text>
-          <text class="section__extra">{{ zone.queue.length }} 首 · 点赞排序</text>
-        </view>
-        <queue-item v-for="song in zone.queue" :key="song.rank" :item="song" />
+      <view v-else class="now-playing now-playing--idle">
+        <text class="now-playing__idle-text">还没有歌曲在播放，来上传第一首吧</text>
       </view>
 
-      <!-- 碎片墙 -->
+      <!-- 动态分享区：主界面 1-2 张，可横滑，点击进入动态详情（决议 D6/D9） -->
+      <view v-if="zone.moments.length" class="section">
+        <view class="section__header" @click="goMoments">
+          <text class="section__title">动态</text>
+          <text class="section__more">半小时内 ›</text>
+        </view>
+        <scroll-view scroll-x enhanced :show-scrollbar="false" class="moment-scroll">
+          <view class="moment-scroll__inner">
+            <view
+              v-for="m in zone.moments.slice(0, 2)"
+              :key="m.id"
+              class="moment-scroll__item"
+              @click="goMoments"
+            >
+              <moment-card :moment="m" :own="m.userId === 'me'" @withdraw="onWithdraw" />
+            </view>
+          </view>
+        </scroll-view>
+      </view>
+
+      <!-- 歌单列表区：FIFO 按上传顺序，当前播放高亮（决议 D3/D9） -->
       <view class="section">
-        <view class="section__header section__header--outside">
-          <text class="section__title">碎片墙</text>
-          <text class="section__extra">此刻的图与文，都挂在当下这首歌上</text>
+        <view class="section__header">
+          <text class="section__title">歌单</text>
+          <text class="section__more">{{ zone.queue.length }} 首待播</text>
         </view>
-        <view class="moment-grid">
-          <moment-card v-for="m in zone.moments" :key="m.id" :moment="m" class="moment-grid__item" />
+        <view class="sz-card queue-card">
+          <queue-item
+            v-if="zone.nowPlaying"
+            :item="{ title: zone.nowPlaying.title, artist: zone.nowPlaying.artist, likes: 0, by: zone.nowPlaying.by }"
+            :playing="true"
+          />
+          <queue-item
+            v-for="(song, i) in zone.queue"
+            :key="song.itemId"
+            :item="song"
+            :rank="i + 1"
+          />
+          <view v-if="!zone.queue.length && !zone.nowPlaying" class="queue-card__empty">
+            歌单还是空的
+          </view>
         </view>
       </view>
 
-      <!-- 底部留白，避免被操作栏遮挡 -->
       <view class="bottom-spacer" />
     </scroll-view>
 
-    <!-- 底部操作栏 -->
-    <view class="action-bar">
-      <button class="action-bar__btn action-bar__btn--primary" @click="onRequest">点歌</button>
-      <button class="action-bar__btn" @click="onMoment">发碎片</button>
+    <!-- 底部悬浮毛玻璃操作栏：上传歌曲 / 上传图片（冷却置灰+倒计时，决议 D4/D9） -->
+    <view class="action-bar sz-glass">
+      <button
+        class="action-bar__btn"
+        :class="{ 'action-bar__btn--disabled': cooldown > 0 }"
+        @click="onUploadSong"
+      >
+        <text v-if="cooldown > 0">{{ formatCooldown(cooldown) }} 后可上传</text>
+        <text v-else>上传歌曲</text>
+      </button>
+      <button class="action-bar__btn action-bar__btn--primary" @click="showImagePopup = true">上传图片</button>
     </view>
+
+    <!-- 两个半屏玻璃弹窗 -->
+    <upload-song-popup
+      :visible="showSongPopup"
+      :cooldown="cooldown"
+      :zone-id="zone.id"
+      @close="showSongPopup = false"
+      @uploaded="onSongUploaded"
+      @toast="toast"
+    />
+    <upload-image-popup
+      :visible="showImagePopup"
+      :bind-track="zone.nowPlaying ? zone.nowPlaying.title : ''"
+      :zone-id="zone.id"
+      @close="showImagePopup = false"
+      @uploaded="onImageUploaded"
+      @toast="toast"
+    />
   </view>
 </template>
 
 <script setup>
 /**
- * 域详情页 —— 产品核心页面（docs/01：域三件套）
- * 组成：同频电台（正在播放）+ 点歌台（队列）+ 碎片墙
- * Demo 数据为一次性拉取；真实实现为 WS 长连接：
- * 服务端权威时钟广播播放状态，点歌/红心实时同步（docs/05 接入层）
+ * 域内页（产品核心页面）v2：2026-09-24 决议 D3/D4/D6/D7/D9
+ * 结构：毛玻璃顶栏 / 当前播放区（第一视觉+爱心收藏）/ 动态区（1-2 张横滑）/
+ *       歌单列表（FIFO+高亮）/ 底部上传操作栏（冷却倒计时）/ 两个上传弹窗
+ * 数据：api/mock.js（联调时替换为 GET /zones/{id} + WS）
  */
-import { ref } from 'vue'
+import { ref, onUnmounted } from 'vue'
 import { onLoad } from '@dcloudio/uni-app'
-import { getZoneDetail, requestSong } from '@/api/mock.js'
+import {
+  getZoneDetail, getCooldown, collectTrack, withdrawMoment,
+} from '@/api/mock.js'
 import QueueItem from '@/components/queue-item/queue-item.vue'
 import MomentCard from '@/components/moment-card/moment-card.vue'
+import UploadSongPopup from '@/components/upload-song-popup/upload-song-popup.vue'
+import UploadImagePopup from '@/components/upload-image-popup/upload-image-popup.vue'
 
 const zone = ref(null)
-// 自定义导航需要手动避让状态栏
+const collected = ref(false)
+const showSongPopup = ref(false)
+const showImagePopup = ref(false)
+const cooldown = ref(0)
 const statusBarHeight = ref(uni.getSystemInfoSync().statusBarHeight || 20)
 
+let cooldownTimer = null
+
 onLoad(async (option) => {
-  zone.value = await getZoneDetail(option.id)
-  if (!zone.value) {
+  const data = await getZoneDetail(option.id)
+  if (!data) {
     uni.showToast({ title: '域不存在', icon: 'none' })
     setTimeout(() => uni.navigateBack(), 800)
+    return
   }
+  zone.value = data
+  await refreshCooldown()
+  // 冷却倒计时：每秒刷新（决议 D4）
+  cooldownTimer = setInterval(refreshCooldown, 1000)
 })
+
+onUnmounted(() => {
+  if (cooldownTimer) clearInterval(cooldownTimer)
+})
+
+async function refreshCooldown() {
+  if (!zone.value) return
+  cooldown.value = await getCooldown(zone.value.id)
+}
+
+/** 冷却中点击置灰按钮：轻量提示，不弹强窗 */
+function onUploadSong() {
+  if (cooldown.value > 0) {
+    toast(`${formatCooldown(cooldown.value)} 后可上传`)
+    return
+  }
+  showSongPopup.value = true
+}
+
+function onSongUploaded(item) {
+  zone.value.queue.push(item)
+  refreshCooldown()
+}
+
+function onImageUploaded(moment) {
+  zone.value.moments.unshift(moment)
+}
+
+/** 收藏当前播放：爱心高亮 + 模拟上传者收到微光提示（决议 D7） */
+async function onCollect() {
+  collected.value = !collected.value
+  if (collected.value) {
+    await collectTrack(zone.value.id, zone.value.nowPlaying.trackId)
+    toast('已收藏，上传者会收到微光提示')
+  }
+}
+
+/** 更多：退出域 / 举报（决议 D9 顶部右侧更多按钮） */
+function onMore() {
+  uni.showActionSheet({
+    itemList: ['退出域', '举报'],
+    success: ({ tapIndex }) => {
+      if (tapIndex === 0) {
+        toast('已退出（全员退出后域自动消失）')
+        setTimeout(() => uni.navigateBack(), 600)
+      } else {
+        toast('已收到举报，感谢反馈')
+      }
+    },
+  })
+}
+
+async function onWithdraw(momentId) {
+  await withdrawMoment(zone.value.id, momentId)
+  zone.value.moments = zone.moments.filter((m) => m.id !== momentId)
+  toast('已撤回')
+}
+
+function goMoments() {
+  uni.navigateTo({ url: `/pages/zone/moments?id=${zone.value.id}` })
+}
 
 function goBack() {
   uni.navigateBack()
 }
 
-function onRequest() {
-  // Demo：模拟点歌；真实流程见 api/mock.js requestSong 注释
-  requestSong(zone.value.id, 'Demo 点歌')
-  uni.showToast({ title: '已加入队列', icon: 'success' })
+function toast(title) {
+  uni.showToast({ title, icon: 'none' })
 }
 
-function onMoment() {
-  uni.showToast({ title: 'Demo：碎片功能开发中', icon: 'none' })
+function formatCooldown(sec) {
+  const m = Math.floor(sec / 60)
+  const s = sec % 60
+  return `${m}:${String(s).padStart(2, '0')}`
 }
 </script>
 
@@ -125,6 +243,7 @@ function onMoment() {
   }
 }
 
+/* 顶部毛玻璃固定栏：轻透，模糊下方内容 */
 .nav {
   display: flex;
   align-items: center;
@@ -132,7 +251,7 @@ function onMoment() {
   padding-bottom: 16rpx;
   padding-left: $sz-gap-md;
   padding-right: $sz-gap-md;
-  background-color: $sz-card;
+  border-radius: 0;
 
   &__back {
     font-size: 56rpx;
@@ -143,87 +262,87 @@ function onMoment() {
 
   &__title {
     display: flex;
+    flex-direction: column;
     align-items: center;
-    gap: 10rpx;
+  }
+
+  &__name {
     font-size: $sz-font-lg;
     font-weight: 500;
   }
 
   &__listeners {
     font-size: $sz-font-xs;
-    color: $sz-accent;
-    width: 120rpx;
+    color: $sz-text-tertiary;
+  }
+
+  &__more {
+    font-size: $sz-font-lg;
+    color: $sz-text-secondary;
+    width: 60rpx;
     text-align: right;
   }
 }
 
-.live-dot {
-  width: 14rpx;
-  height: 14rpx;
-  border-radius: 50%;
-  background-color: $sz-accent;
-}
-
-.host-row {
-  display: flex;
-  align-items: center;
-  gap: $sz-gap-sm;
-  padding: $sz-gap-md 8rpx 0;
-
-  &__host {
-    font-size: $sz-font-sm;
-    color: $sz-text-secondary;
-  }
-
-  &__tags {
-    display: flex;
-    gap: 10rpx;
-  }
-}
-
-.banned-row {
-  font-size: $sz-font-xs;
-  color: $sz-text-tertiary;
-  padding: 8rpx 8rpx 0;
-}
-
+/* 当前播放区：第一视觉，居中大封面 */
 .now-playing {
+  position: relative;
   display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: $sz-gap-md;
-  margin-top: $sz-gap-md;
+  padding: $sz-gap-lg 0 $sz-gap-md;
 
   &__cover {
-    width: 120rpx;
-    height: 120rpx;
-    border-radius: $sz-radius-md;
+    width: 360rpx;
+    height: 360rpx;
+    border-radius: $sz-radius-lg;
     display: flex;
     align-items: center;
     justify-content: center;
-    flex-shrink: 0;
+    box-shadow: $sz-shadow-float;
+    margin-bottom: $sz-gap-md;
   }
 
   &__note {
     color: #ffffff;
-    font-size: 52rpx;
-  }
-
-  &__info {
-    flex: 1;
-    min-width: 0;
-    display: flex;
-    flex-direction: column;
+    font-size: 120rpx;
   }
 
   &__title {
-    font-size: $sz-font-lg;
+    font-size: $sz-font-xl;
     font-weight: 500;
   }
 
   &__artist {
-    font-size: $sz-font-xs;
+    font-size: $sz-font-sm;
     color: $sz-text-secondary;
-    margin: 6rpx 0 12rpx;
+    margin: 8rpx 0 $sz-gap-md;
+  }
+
+  &__progress {
+    width: 70%;
+  }
+
+  /* 右下角极简爱心收藏 */
+  &__heart {
+    position: absolute;
+    right: 12%;
+    bottom: $sz-gap-md;
+    font-size: 48rpx;
+    color: $sz-text-tertiary;
+
+    &.collected {
+      color: $sz-accent;
+    }
+  }
+
+  &--idle {
+    padding: 80rpx 0;
+  }
+
+  &__idle-text {
+    color: $sz-text-tertiary;
+    font-size: $sz-font-sm;
   }
 }
 
@@ -234,11 +353,8 @@ function onMoment() {
     display: flex;
     justify-content: space-between;
     align-items: baseline;
+    padding: 0 8rpx;
     margin-bottom: $sz-gap-sm;
-
-    &--outside {
-      padding: 0 8rpx;
-    }
   }
 
   &__title {
@@ -246,38 +362,52 @@ function onMoment() {
     font-weight: 500;
   }
 
-  &__extra {
+  &__more {
     font-size: $sz-font-xs;
     color: $sz-text-tertiary;
   }
 }
 
-.moment-grid {
-  display: flex;
-  flex-wrap: wrap;
-  gap: $sz-gap-sm;
+.moment-scroll {
+  white-space: nowrap;
+
+  &__inner {
+    display: inline-flex;
+    gap: $sz-gap-sm;
+  }
 
   &__item {
-    width: calc(50% - #{$sz-gap-sm} / 2);
+    width: 320rpx;
+    flex-shrink: 0;
+  }
+}
+
+.queue-card {
+  padding: $sz-gap-sm;
+
+  &__empty {
+    text-align: center;
+    color: $sz-text-tertiary;
+    font-size: $sz-font-sm;
+    padding: 40rpx 0;
   }
 }
 
 .bottom-spacer {
-  height: 140rpx;
+  height: 160rpx;
 }
 
+/* 底部悬浮毛玻璃操作栏 */
 .action-bar {
   display: flex;
   gap: $sz-gap-md;
-  padding: $sz-gap-sm $sz-gap-md;
-  padding-bottom: calc(#{$sz-gap-sm} + env(safe-area-inset-bottom));
-  background-color: $sz-card;
-  box-shadow: 0 -2rpx 12rpx rgba(0, 0, 0, 0.04);
+  padding: $sz-gap-sm $sz-gap-md calc(#{$sz-gap-sm} + env(safe-area-inset-bottom));
+  border-radius: 0;
 
   &__btn {
     flex: 1;
     font-size: $sz-font-base;
-    background-color: $sz-bg;
+    background-color: rgba(0, 0, 0, 0.06);
     color: $sz-text;
     border-radius: 999rpx;
 
@@ -289,6 +419,12 @@ function onMoment() {
       background-color: $sz-primary;
       color: #ffffff;
       font-weight: 500;
+    }
+
+    /* 冷却置灰（决议 D4） */
+    &--disabled {
+      opacity: 0.45;
+      color: $sz-text-secondary;
     }
   }
 }
