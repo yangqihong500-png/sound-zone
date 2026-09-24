@@ -6,8 +6,8 @@ import lombok.Data;
 import java.time.LocalDateTime;
 
 /**
- * 用户表
- * tasteScore = 歌品值（docs/02 成长体系）：点歌被点赞率，由 FeedbackService 定期重算
+ * 用户表（v2：2026-09-24 会议）
+ * v2 变更：移除歌品值字段 tasteScore（决议 D7 去游戏化：不做积分/等级/勋章）
  */
 @Data
 @Entity
@@ -24,11 +24,7 @@ public class User {
 
     /** 头像占位色（Demo 阶段与前端一致，正式版替换为 COS 头像 URL） */
     @Column(nullable = false, length = 16)
-    private String avatarColor = "#31C27C";
-
-    /** 歌品值 0~100，冗余存储避免每次实时计算 */
-    @Column(nullable = false)
-    private Double tasteScore = 0.0;
+    private String avatarColor = "#8C9BAB";
 
     @Column(nullable = false, updatable = false)
     private LocalDateTime createdAt = LocalDateTime.now();

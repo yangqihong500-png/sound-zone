@@ -2,6 +2,9 @@ package com.soundzone.zone.service;
 
 import com.soundzone.common.BizException;
 import com.soundzone.common.ResultCode;
+import com.soundzone.moment.dto.MomentDTO;
+import com.soundzone.moment.repository.MomentRepository;
+import com.soundzone.queue.dto.QueueItemDTO;
 import com.soundzone.queue.entity.QueueItem;
 import com.soundzone.queue.entity.QueueStatus;
 import com.soundzone.queue.repository.QueueItemRepository;
@@ -11,11 +14,9 @@ import com.soundzone.user.entity.User;
 import com.soundzone.user.repository.UserRepository;
 import com.soundzone.zone.dto.*;
 import com.soundzone.zone.entity.*;
+import com.soundzone.zone.repository.ZoneMemberRepository;
 import com.soundzone.zone.repository.ZonePeriodRepository;
 import com.soundzone.zone.repository.ZoneRepository;
-import com.soundzone.moment.repository.MomentRepository;
-import com.soundzone.moment.dto.MomentDTO;
-import com.soundzone.queue.dto.QueueItemDTO;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -24,11 +25,12 @@ import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
- * 域服务：创建域 / 活跃域列表 / 域详情 / 结束域
- * 对应 docs/02 第 1、2、5 步
+ * 域服务（v2：2026-09-24 会议）
+ * 创建域（公开/私密 + 过滤双模式）/ 活跃公开域列表 / 进入（私密鉴权）/ 退出（全员退出自动消失）/ 域详情
  */
 @Service
 @RequiredArgsConstructor
@@ -36,36 +38,36 @@ public class ZoneService {
 
     private final ZoneRepository zoneRepository;
     private final ZonePeriodRepository periodRepository;
+    private final ZoneMemberRepository memberRepository;
     private final QueueItemRepository queueItemRepository;
     private final MomentRepository momentRepository;
     private final UserRepository userRepository;
     private final TrackRepository trackRepository;
 
     /**
-     * 场景名归一化映射（docs/02 第 1 步：避免流量过度分散）
+     * 场景名归一化映射（docs/02 第 1 步）
      * 【假设】Demo 用静态映射表；正式版为文本聚类模型（docs/03 场景归一化）
      */
-        private static final Map<String, String> SCENE_ALIASES = Map.ofEntries(
-            Map.entry("自习室", "自习"), Map.entry("图书馆刷题", "自习"), Map.entry("考研", "自习"),
-            Map.entry("夜跑", "健身"), Map.entry("健身房", "健身"), Map.entry("铁馆", "健身"),
-            Map.entry("solo trip", "旅行"), Map.entry("旅游", "旅行"),
-            Map.entry("拼豆", "手工"), Map.entry("手作", "手工"),
-            Map.entry("写代码", "工作"), Map.entry("加班", "工作"),
-            Map.entry("深夜", "深夜"), Map.entry("睡前", "深夜")
-        );
+    private static final Map<String, String> SCENE_ALIASES = Map.of(
+            "自习室", "自习", "图书馆刷题", "自习", "考研", "自习",
+            "夜跑", "健身", "健身房", "健身", "铁馆", "健身",
+            "solo trip", "旅行", "旅游", "旅行",
+            "拼豆", "手工", "手作", "手工",
+            "写代码", "工作", "加班", "工作",
+            "深夜", "深夜", "睡前", "深夜"
+    );
 
-    /** 首页/发现页：只推活跃域，按同频人数排序（docs/02 第 2 步） */
+    /** 首页/发现页：只推活跃的公开域（决议 D2：私密域不参与分发），按同频人数排序 */
     public List<ZoneSummaryDTO> listActive(String scene) {
         List<Zone> zones = (scene == null || scene.isBlank() || "全部".equals(scene))
-                ? zoneRepository.findByStatusOrderByListenerCountDesc(ZoneStatus.ACTIVE)
-                : zoneRepository.findByStatusAndSceneOrderByListenerCountDesc(ZoneStatus.ACTIVE, normalizeScene(scene));
+                ? zoneRepository.findByStatusAndVisibilityOrderByListenerCountDesc(ZoneStatus.ACTIVE, ZoneVisibility.PUBLIC)
+                : zoneRepository.findByStatusAndVisibilityAndSceneOrderByListenerCountDesc(ZoneStatus.ACTIVE, ZoneVisibility.PUBLIC, normalizeScene(scene));
         return zones.stream().map(this::toSummary).toList();
     }
 
-    /** 创建域：≥3 首歌 + 场景命名 + 可选黑名单/番茄钟（docs/02 第 1 步） */
+    /** 创建域：≥3 首歌 + 场景命名 + 可见性 + 过滤双模式 + 可选番茄钟 */
     @Transactional
     public ZoneDetailDTO createZone(ZoneCreateRequest req) {
-        // 建域门槛（注解 @Size(min=3) 已兜底，这里再校验一次给出业务错误码）
         if (req.trackIds() == null || req.trackIds().size() < 3) {
             throw new BizException(ResultCode.ZONE_CREATE_TRACKS_NOT_ENOUGH);
         }
@@ -82,10 +84,24 @@ public class ZoneService {
         zone.setHost(host);
         if (req.coverColor() != null) zone.setCoverColor(req.coverColor());
         if (req.tags() != null) zone.setTags(req.tags());
-        if (req.bannedTags() != null) zone.setBannedTags(req.bannedTags());
+        if (req.filterTags() != null) zone.setFilterTags(req.filterTags());
+        if (req.filterMode() != null) zone.setFilterMode(FilterMode.valueOf(req.filterMode().toUpperCase()));
+
+        // 可见性（决议 D2）：私密域需要密码或自动生成邀请码
+        if (req.visibility() != null && "PRIVATE".equalsIgnoreCase(req.visibility())) {
+            zone.setVisibility(ZoneVisibility.PRIVATE);
+            if (req.password() != null && !req.password().isBlank()) {
+                zone.setPassword(req.password());
+            }
+            // 无论是否设密码都生成邀请码，保证邀请链接可用
+            zone.setInviteCode(UUID.randomUUID().toString().replace("-", "").substring(0, 8));
+        }
         zone = zoneRepository.save(zone);
 
-        // 番茄钟时段配置（docs/02 决议 D3）
+        // 域主自动成为成员（同频人数从 1 开始）
+        joinInternal(zone, host);
+
+        // 番茄钟时段配置（2026-09-23 决议 D3）
         if (req.periods() != null) {
             Zone finalZone = zone;
             List<ZonePeriod> periods = req.periods().stream().map(p -> {
@@ -100,14 +116,12 @@ public class ZoneService {
             periodRepository.saveAll(periods);
         }
 
-        // 初始歌单进队列：第 1 首直接播放，其余按创建顺序入活跃队列
+        // 初始歌单进队列：第 1 首直接播放，其余按上传顺序 FIFO 等待
         for (int i = 0; i < tracks.size(); i++) {
             QueueItem item = new QueueItem();
             item.setZone(zone);
             item.setTrack(tracks.get(i));
             item.setRequester(host);
-            item.setHostBonus(1); // 域主加成（docs/02 队列公式）
-            item.setScore(3.0);   // 初始分 = 0×2 + 1×3 − 0
             if (i == 0) {
                 item.setStatus(QueueStatus.PLAYING);
                 item.setStartedAt(LocalDateTime.now());
@@ -117,30 +131,79 @@ public class ZoneService {
         return getDetail(zone.getId());
     }
 
-    /** 域详情：三件套组装（播放中 + 队列 + 碎片墙） */
+    /**
+     * 进入域（决议 D2）：
+     * 公开域直接进入；私密域校验密码或邀请码；
+     * 加入即成为成员，同频人数 +1
+     */
+    @Transactional
+    public ZoneDetailDTO joinZone(Long zoneId, JoinZoneRequest req) {
+        Zone zone = getZone(zoneId);
+        if (zone.getStatus() == ZoneStatus.ENDED) {
+            throw new BizException(ResultCode.ZONE_ALREADY_ENDED);
+        }
+        User user = userRepository.findById(req.userId())
+                .orElseThrow(() -> new BizException(ResultCode.USER_NOT_FOUND));
+
+        if (zone.getVisibility() == ZoneVisibility.PRIVATE) {
+            boolean codeOk = req.inviteCode() != null && req.inviteCode().equals(zone.getInviteCode());
+            boolean pwdOk = zone.getPassword() != null && zone.getPassword().equals(req.password());
+            if (!codeOk && !pwdOk) {
+                boolean needAuth = req.password() == null && req.inviteCode() == null;
+                throw new BizException(needAuth ? ResultCode.ZONE_PRIVATE_NEED_AUTH : ResultCode.ZONE_PASSWORD_WRONG);
+            }
+        }
+
+        // 幂等：已在域内直接返回详情
+        if (memberRepository.findByZoneIdAndUserId(zoneId, user.getId()).isEmpty()) {
+            joinInternal(zone, user);
+        }
+        return getDetail(zoneId);
+    }
+
+    /**
+     * 退出域（决议 D2）：移除成员，同频人数 -1；
+     * **全员退出后域自动消失**（状态置 ENDED 并归档当前播放）
+     */
+    @Transactional
+    public void leaveZone(Long zoneId, Long userId) {
+        Zone zone = getZone(zoneId);
+        memberRepository.deleteByZoneIdAndUserId(zoneId, userId);
+        long remaining = memberRepository.countByZoneId(zoneId);
+        zone.setListenerCount((int) remaining);
+        zoneRepository.save(zone);
+        if (remaining == 0) {
+            endZone(zoneId);
+        }
+    }
+
+    /** 域详情：当前播放 + FIFO 队列 + 动态区 */
     public ZoneDetailDTO getDetail(Long zoneId) {
         Zone zone = getZone(zoneId);
         NowPlayingDTO nowPlaying = currentPlaying(zoneId);
 
-        // 活跃队列按得分排序，rank 按位次生成
+        // FIFO：按上传时间升序，rank 即等待位次（决议 D3）
         AtomicInteger rank = new AtomicInteger(1);
         List<QueueItemDTO> queue = queueItemRepository
-                .findByZoneIdAndStatusOrderByScoreDesc(zoneId, QueueStatus.QUEUED)
+                .findByZoneIdAndStatusOrderByCreatedAtAsc(zoneId, QueueStatus.QUEUED)
                 .stream()
                 .map(q -> new QueueItemDTO(q.getId(), rank.getAndIncrement(),
                         q.getTrack().getTitle(), q.getTrack().getArtist(),
                         q.getLikes(), q.getRequester().getName(), q.getStatus().name()))
                 .toList();
 
-        List<MomentDTO> moments = momentRepository.findByZoneIdOrderByCreatedAtDesc(zoneId)
+        List<MomentDTO> moments = momentRepository
+                .findTop2ByZoneIdAndStatusOrderByCreatedAtDesc(zoneId, com.soundzone.moment.entity.MomentStatus.NORMAL)
                 .stream().map(MomentDTO::from).toList();
 
         return new ZoneDetailDTO(zone.getId(), zone.getName(), zone.getScene(),
                 zone.getListenerCount(), zone.getHost().getName(), zone.getCoverColor(),
-                zone.getTags(), zone.getBannedTags(), nowPlaying, queue, moments);
+                zone.getVisibility().name(), zone.getInviteCode(),
+                zone.getTags(), zone.getFilterMode().name(), zone.getFilterTags(),
+                nowPlaying, queue, moments);
     }
 
-    /** 结束域：状态置为 ENDED，剩余队列归档（战报由 FeedbackService 聚合） */
+    /** 结束域：状态置为 ENDED，当前播放归档（战报由 FeedbackService 聚合，保留） */
     @Transactional
     public void endZone(Long zoneId) {
         Zone zone = getZone(zoneId);
@@ -182,9 +245,19 @@ public class ZoneService {
         return SCENE_ALIASES.getOrDefault(trimmed, trimmed);
     }
 
+    /** 成员加入内部方法：写成员关系并维护同频人数 */
+    private void joinInternal(Zone zone, User user) {
+        ZoneMember member = new ZoneMember();
+        member.setZone(zone);
+        member.setUser(user);
+        memberRepository.save(member);
+        zone.setListenerCount((int) memberRepository.countByZoneId(zone.getId()));
+        zoneRepository.save(zone);
+    }
+
     private ZoneSummaryDTO toSummary(Zone z) {
         return new ZoneSummaryDTO(z.getId(), z.getName(), z.getScene(),
                 z.getListenerCount(), z.getHost().getName(), z.getCoverColor(),
-                z.getTags(), currentPlaying(z.getId()));
+                z.getVisibility().name(), z.getTags(), currentPlaying(z.getId()));
     }
 }

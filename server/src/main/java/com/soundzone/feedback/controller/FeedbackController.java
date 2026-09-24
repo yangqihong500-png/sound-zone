@@ -9,7 +9,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 
 /**
- * 反馈控制器（docs/02 决议 D2：红心/收藏 + 域后战报）
+ * 反馈控制器（v2：2026-09-24 决议 D7：收藏/点赞/emoji + 域后战报保留）
  */
 @RestController
 @RequiredArgsConstructor

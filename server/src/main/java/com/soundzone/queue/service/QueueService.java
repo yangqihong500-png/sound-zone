@@ -11,6 +11,7 @@ import com.soundzone.track.entity.Track;
 import com.soundzone.track.repository.TrackRepository;
 import com.soundzone.user.entity.User;
 import com.soundzone.user.repository.UserRepository;
+import com.soundzone.zone.entity.FilterMode;
 import com.soundzone.zone.entity.Zone;
 import com.soundzone.zone.entity.ZonePeriod;
 import com.soundzone.zone.entity.ZoneStatus;
@@ -26,19 +27,18 @@ import java.util.List;
 import java.util.Set;
 
 /**
- * 队列服务（docs/02 第 3 步，核心机制）
+ * 队列服务（docs/02 第 3 步，v2：2026-09-24 会议）
  *
- * 队列得分公式：score = 点赞数 × 2 + 域主加成 × 3 − 该用户近 1 小时已播点歌数 × 1.5
- * 准入校验：曲风黑名单（决议 D1）→ 直接拒绝；
- *           番茄钟时段白名单（决议 D3）→ 不符合则入预存队列
+ * 播放顺序：按上传顺序 FIFO（v1 得分公式已废除）
+ * 上传准入：① 10 分钟冷却 → ② 域级标签过滤（BAN/ALLOW 双模式）→ ③ 番茄钟时段白名单（不符入预存）
+ * 点赞：仅互动信号，不改变播放顺序
  */
 @Service
 @RequiredArgsConstructor
 public class QueueService {
 
-    private static final int LIKE_WEIGHT = 2;
-    private static final int HOST_BONUS_WEIGHT = 3;
-    private static final double RECENT_PLAYED_PENALTY = 1.5;
+    /** 上传冷却时长（决议 D4）：单用户单域 10 分钟 1 首 */
+    private static final int COOLDOWN_MINUTES = 10;
 
     private final QueueItemRepository queueItemRepository;
     private final ZoneRepository zoneRepository;
@@ -46,7 +46,7 @@ public class QueueService {
     private final TrackRepository trackRepository;
     private final UserRepository userRepository;
 
-    /** 点歌：黑名单校验 → 时段白名单校验 → 入队并计算初始得分 */
+    /** 上传歌曲：冷却 → 过滤 → 时段白名单 → 入队尾（FIFO） */
     @Transactional
     public QueueItemDTO requestSong(Long zoneId, SongRequest req) {
         Zone zone = zoneRepository.findById(zoneId)
@@ -59,53 +59,74 @@ public class QueueService {
         User requester = userRepository.findById(req.userId())
                 .orElseThrow(() -> new BizException(ResultCode.USER_NOT_FOUND));
 
-        // ① 曲风黑名单校验（docs/02 决议 D1）：命中即拒绝
-        Set<String> banned = zone.getBannedTags();
-        if (banned != null && track.getTags().stream().anyMatch(banned::contains)) {
-            throw new BizException(ResultCode.SONG_BANNED_BY_ZONE,
-                    "曲目「" + track.getTitle() + "」标签 " + track.getTags() + " 命中本域黑名单");
+        // ① 上传冷却（决议 D4）：10 分钟内已上传 → 拒绝并告知剩余秒数
+        long cooldownRemain = cooldownRemainSeconds(zoneId, requester.getId());
+        if (cooldownRemain > 0) {
+            throw new BizException(ResultCode.UPLOAD_COOLDOWN,
+                    "冷却剩余 " + cooldownRemain + " 秒");
         }
+
+        // ② 域级标签过滤（决议 D5 双模式）
+        checkZoneFilter(zone, track);
 
         QueueItem item = new QueueItem();
         item.setZone(zone);
         item.setTrack(track);
         item.setRequester(requester);
-        boolean isHost = zone.getHost().getId().equals(requester.getId());
-        item.setHostBonus(isHost ? 1 : 0);
 
-        // ② 番茄钟时段白名单校验（决议 D3）：不符合当前时段 → 预存队列
+        // ③ 番茄钟时段白名单（与域级过滤叠加）：不符合当前时段 → 预存队列
         if (!allowedInCurrentPeriod(zone, track)) {
             item.setStatus(QueueStatus.PRESET);
         }
-
-        item.setScore(calcScore(item, zoneId, requester.getId()));
+        // ④ 入队尾：FIFO 由 createdAt 升序保证，无需任何得分字段
         item = queueItemRepository.save(item);
         return toDTO(item, null);
     }
 
-    /** 点赞：+1 赞并重算得分（正式版同步广播 queue_version+1） */
+    /** 点赞：+1 赞（仅互动信号，不影响 FIFO 播放顺序） */
     @Transactional
     public QueueItemDTO like(Long itemId, Long userId) {
         QueueItem item = queueItemRepository.findById(itemId)
                 .orElseThrow(() -> new BizException(ResultCode.QUEUE_ITEM_NOT_FOUND));
         item.setLikes(item.getLikes() + 1);
-        item.setScore(calcScore(item, item.getZone().getId(), item.getRequester().getId()));
         queueItemRepository.save(item);
         return toDTO(item, null);
     }
 
-    /** 队列得分（公式见类注释） */
-    private double calcScore(QueueItem item, Long zoneId, Long requesterId) {
-        long recentPlayed = queueItemRepository.countByZoneIdAndRequesterIdAndStatusAndPlayedAtAfter(
-                zoneId, requesterId, QueueStatus.PLAYED, LocalDateTime.now().minusHours(1));
-        return item.getLikes() * LIKE_WEIGHT
-                + item.getHostBonus() * HOST_BONUS_WEIGHT
-                - recentPlayed * RECENT_PLAYED_PENALTY;
+    /** 冷却剩余秒数（0 = 可上传）；前端据此渲染按钮置灰与倒计时（决议 D4） */
+    public long cooldownRemainSeconds(Long zoneId, Long userId) {
+        return queueItemRepository
+                .findFirstByZoneIdAndRequesterIdOrderByCreatedAtDesc(zoneId, userId)
+                .map(last -> {
+                    long elapsed = Duration.between(last.getCreatedAt(), LocalDateTime.now()).getSeconds();
+                    return Math.max(0, COOLDOWN_MINUTES * 60L - elapsed);
+                })
+                .orElse(0L);
     }
 
     /**
-     * 判断曲目是否符合"当前时段"白名单
-     * 无时段配置 / 当前时段白名单为空 → 放行；
+     * 域级标签过滤（决议 D5）：
+     * BAN 模式：歌曲标签命中 filterTags → 拒绝（3002）
+     * ALLOW 模式：歌曲标签与 filterTags 无交集 → 拒绝（3009）
+     * filterTags 为空时两种模式均放行
+     */
+    private void checkZoneFilter(Zone zone, Track track) {
+        Set<String> filterTags = zone.getFilterTags();
+        if (filterTags == null || filterTags.isEmpty()) return;
+        boolean hit = track.getTags().stream().anyMatch(filterTags::contains);
+        if (zone.getFilterMode() == FilterMode.BAN && hit) {
+            throw new BizException(ResultCode.SONG_BANNED_BY_ZONE,
+                    "曲目「" + track.getTitle() + "」标签 " + track.getTags() + " 被本域禁止");
+        }
+        if (zone.getFilterMode() == FilterMode.ALLOW && !hit) {
+            throw new BizException(ResultCode.SONG_FILTERED_BY_ZONE,
+                    "曲目「" + track.getTitle() + "」不在本域允许的标签 " + filterTags + " 范围内");
+        }
+    }
+
+    /**
+     * 判断曲目是否符合"当前时段"白名单（番茄钟，docs/02）
+     * 无时段配置 / 当前时段白名单为空 → 放行
      * 【假设】当前时段按 域创建至今的分钟数 对各时段循环取模推算；
      *        正式版由服务端权威时钟统一推进并广播时段切换事件
      */

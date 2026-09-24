@@ -9,9 +9,12 @@ import lombok.Data;
 import java.time.LocalDateTime;
 
 /**
- * 点歌队列条目（docs/02 第 3 步）
- * 队列得分 = 点赞数 × 2 + 域主加成 × 3 − 该用户近 1 小时已播点歌数 × 1.5
- * 得分由 QueueService 在点赞/播放事件后重算并落库（冗余存储便于排序查询）
+ * 上传队列条目（docs/02 第 3 步，v2：2026-09-24 会议）
+ *
+ * v2 关键变更：
+ * - 播放顺序 = 按上传顺序 FIFO（createdAt 升序），v1 的队列得分公式已废除
+ * - 点赞保留，但仅作互动信号，不影响播放顺序
+ * - 上传秩序由 10 分钟冷却 + 标签过滤维持（取代 v1 刷屏惩罚）
  */
 @Data
 @Entity
@@ -32,33 +35,26 @@ public class QueueItem {
     @JoinColumn(name = "track_id")
     private Track track;
 
-    /** 点歌人（审美反馈与歌品值的归属用户） */
+    /** 上传者（审美反馈与图片关联的归属用户） */
     @ManyToOne(fetch = FetchType.EAGER, optional = false)
     @JoinColumn(name = "user_id")
     private User requester;
 
-    /** 收到的点赞数 */
+    /** 收到的点赞数（互动信号，不影响 FIFO 播放顺序） */
     @Column(nullable = false)
     private Integer likes = 0;
-
-    /** 域主加成：点歌人即域主时为 1，否则 0（公式中 ×3） */
-    @Column(nullable = false)
-    private Integer hostBonus = 0;
-
-    /** 队列得分（见类注释公式） */
-    @Column(nullable = false)
-    private Double score = 0.0;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 16)
     private QueueStatus status = QueueStatus.QUEUED;
 
+    /** 上传时间：FIFO 的排序依据 */
     @Column(nullable = false, updatable = false)
     private LocalDateTime createdAt = LocalDateTime.now();
 
     /** 开始播放时间（PLAYING 后用于进度对齐；正式版为服务端权威时钟字段） */
     private LocalDateTime startedAt;
 
-    /** 播放完成时间（近 1 小时已播惩罚的统计窗口） */
+    /** 播放完成时间 */
     private LocalDateTime playedAt;
 }

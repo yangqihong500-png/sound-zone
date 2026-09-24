@@ -9,8 +9,9 @@ import java.util.HashSet;
 import java.util.Set;
 
 /**
- * 域表（docs/01 核心概念）
- * 域 = 场景容器：名称即标签；风格治理 = 域主曲风黑名单（docs/02 决议 D1）
+ * 域表（docs/01 核心概念，v2：2026-09-24 会议）
+ * 域 = 场景容器：名称即标签；风格治理 = 标签过滤（禁止含/仅允许含，决议 D5）；
+ * 可见性分公开/私密（决议 D2），全员退出自动消失
  */
 @Data
 @Entity
@@ -34,13 +35,31 @@ public class Zone {
     @JoinColumn(name = "host_id")
     private User host;
 
-    /** 主题色（Demo 封面占位） */
+    /** 主题色（莫兰迪低饱和色，2026-09-24 视觉规范） */
     @Column(length = 16)
-    private String coverColor = "#9FE1CB";
+    private String coverColor = "#A8B8C8";
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 16)
     private ZoneStatus status = ZoneStatus.ACTIVE;
+
+    /** 可见性：PUBLIC 参与分发 / PRIVATE 仅邀请链接或密码进入（决议 D2） */
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 16)
+    private ZoneVisibility visibility = ZoneVisibility.PUBLIC;
+
+    /** 私密域密码（与邀请码二选一或并存，可空） */
+    @Column(length = 32)
+    private String password;
+
+    /** 私密域邀请码（分享链接中的凭证） */
+    @Column(length = 32)
+    private String inviteCode;
+
+    /** 标签过滤模式：BAN=禁止含 / ALLOW=仅允许含（决议 D5） */
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 16)
+    private FilterMode filterMode = FilterMode.BAN;
 
     /** 域风格标签（展示用，由域主勾选） */
     @ElementCollection(fetch = FetchType.EAGER)
@@ -48,15 +67,19 @@ public class Zone {
     @Column(name = "tag", length = 32)
     private Set<String> tags = new HashSet<>();
 
-    /** 曲风黑名单：命中标签的歌不可点（docs/02 决议 D1） */
+    /**
+     * 过滤标签集合：
+     * filterMode=BAN 时为黑名单（命中拒绝）；
+     * filterMode=ALLOW 时为白名单（不含拒绝）
+     */
     @ElementCollection(fetch = FetchType.EAGER)
-    @CollectionTable(name = "sz_zone_banned_tags", joinColumns = @JoinColumn(name = "zone_id"))
+    @CollectionTable(name = "sz_zone_filter_tags", joinColumns = @JoinColumn(name = "zone_id"))
     @Column(name = "tag", length = 32)
-    private Set<String> bannedTags = new HashSet<>();
+    private Set<String> filterTags = new HashSet<>();
 
     /**
-     * 同频人数（听众数）
-     * 【假设】Demo 阶段为冗余展示字段；正式版由 WebSocket 在线连接数实时统计（docs/05 接入层）
+     * 同频人数（听众数）= 当前域内成员数
+     * 由加入/退出实时维护（v2 起取代 v1 的冗余假设字段）
      */
     @Column(nullable = false)
     private Integer listenerCount = 0;
@@ -64,6 +87,6 @@ public class Zone {
     @Column(nullable = false, updatable = false)
     private LocalDateTime createdAt = LocalDateTime.now();
 
-    /** 结束时间（结束后生成域歌单与战报） */
+    /** 结束时间（全员退出自动消失或手动结束） */
     private LocalDateTime endedAt;
 }

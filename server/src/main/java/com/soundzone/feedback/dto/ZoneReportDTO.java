@@ -3,8 +3,8 @@ package com.soundzone.feedback.dto;
 import java.util.List;
 
 /**
- * 域后个人战报（docs/02 决议 D2）：
- * "你推荐的歌让 X 人第一次听到""被 Y 人喜欢/收藏""特效触发 N 次"
+ * 域后个人战报（保留功能，用户确认 2026-09-24）：
+ * 按归属用户聚合 收藏/点赞/emoji 互动
  */
 public record ZoneReportDTO(
         Long zoneId,
@@ -15,9 +15,9 @@ public record ZoneReportDTO(
     public record Entry(
             Long userId,
             String userName,
-            long requestedCount,   // 点歌数
-            long heartCount,       // 收到红心眼（特效次数）
-            long collectCount,     // 收到收藏数
-            long effectCount       // 特效总触发数 = heart + collect
+            long uploadedCount,    // 上传歌曲数
+            long collectCount,     // 收到收藏数（微光提示次数）
+            long likeCount,        // 收到点赞数
+            long emojiCount        // 收到 emoji 互动数
     ) {}
 }

@@ -17,11 +17,17 @@ public enum ResultCode {
     TRACK_NOT_FOUND(2002, "歌曲不存在"),
     USER_NOT_FOUND(2003, "用户不存在"),
     QUEUE_ITEM_NOT_FOUND(2004, "队列条目不存在"),
+    MOMENT_NOT_FOUND(2005, "图片分享不存在"),
 
     ZONE_CREATE_TRACKS_NOT_ENOUGH(3001, "创建域至少需要 3 首歌"),
-    SONG_BANNED_BY_ZONE(3002, "该歌曲的曲风标签被本域禁止"),
+    SONG_BANNED_BY_ZONE(3002, "该歌曲的标签被本域禁止"),
     SONG_NOT_ALLOWED_IN_PERIOD(3003, "该歌曲不符合当前时段的曲风要求，已转入预存队列"),
     ZONE_ALREADY_ENDED(3004, "域已结束"),
+    UPLOAD_COOLDOWN(3005, "上传冷却中"),
+    ZONE_PRIVATE_NEED_AUTH(3006, "私密域需要密码或邀请链接"),
+    ZONE_PASSWORD_WRONG(3007, "私密域密码错误"),
+    NOT_RESOURCE_OWNER(3008, "仅本人可操作"),
+    SONG_FILTERED_BY_ZONE(3009, "该歌曲不在本域允许的标签范围内"),
 
     SYSTEM_ERROR(5000, "系统内部错误");
 

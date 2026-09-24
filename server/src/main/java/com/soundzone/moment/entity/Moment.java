@@ -9,9 +9,9 @@ import lombok.Data;
 import java.time.LocalDateTime;
 
 /**
- * 碎片（docs/01 碎片墙 / docs/03 数据飞轮源头）
- * 每条碎片 = (场景, 图/文, 配乐) 三元组：
- * scene 由 zone 冗余，track 在发布时自动绑定域内当前播放歌曲（docs/02 第 4 步）
+ * 图片分享（docs/02 第 4 步，v2：2026-09-24 会议）
+ * 上传歌曲时可选附图，图片与歌曲关联 —— 每条分享 = (场景, 图片, 关联歌曲) 三元组
+ * 用户可撤回自己的分享（决议 D6）
  */
 @Data
 @Entity
@@ -32,11 +32,11 @@ public class Moment {
     @JoinColumn(name = "user_id")
     private User user;
 
-    /** 文案（与图片至少其一非空，服务层校验） */
+    /** 文案（可空，v2 以图片为主） */
     @Column(length = 500)
     private String text;
 
-    /** 图片 URL（Demo 阶段可空，用封面色占位；正式版为 COS 地址） */
+    /** 图片 URL（正式版为 COS 地址；Demo 可为空，用色块占位） */
     @Column(length = 512)
     private String imageUrl;
 
@@ -44,10 +44,18 @@ public class Moment {
     @Column(length = 16)
     private String color;
 
-    /** 发布时域内正在播放的歌 —— 自动绑定，用户无需选择 */
+    /**
+     * 关联歌曲（v2 绑定规则）：
+     * 优先 = 用户本次上传的那首歌；未指定时回退 = 发布时域内当前播放歌曲
+     */
     @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "track_id")
     private Track track;
+
+    /** 状态：NORMAL / WITHDRAWN（撤回后列表排除） */
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 16)
+    private MomentStatus status = MomentStatus.NORMAL;
 
     @Column(nullable = false, updatable = false)
     private LocalDateTime createdAt = LocalDateTime.now();

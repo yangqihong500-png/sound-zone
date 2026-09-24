@@ -22,9 +22,9 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * 反馈服务（docs/02 决议 D2 审美反馈）
- * 红心/收藏 → 记录事件并归属给该曲点歌人（实时特效的接收方）；
- * 域结束 → 事件聚合为个人战报；同时驱动歌品值（docs/02 成长体系）
+ * 反馈服务（v2：2026-09-24 决议 D7）
+ * 收藏/点赞/emoji → 归属该曲上传者；收藏触发"微光提示"（正式版 WS 定向推送）
+ * 域后战报保留（用户确认）；v1 歌品值体系已取消，不再计算点赞率资产
  */
 @Service
 @RequiredArgsConstructor
@@ -37,10 +37,9 @@ public class FeedbackService {
     private final UserRepository userRepository;
 
     /**
-     * 红心/收藏当前播放歌曲
-     * 【假设】归属规则：优先取该曲在域内"当前播放条目"的点歌人；
-     *        无播放条目时取该曲最近一次点歌的点歌人
-     * 正式版此处同步 WS 定向推送特效消息给 toUser（docs/05 反馈服务）
+     * 对当前播放歌曲反馈（COLLECT / LIKE / EMOJI_HEART / EMOJI_LAUGH）
+     * 归属规则：该曲在域内"当前播放条目"的上传者；
+     * 仅 COLLECT 产生微光提示（决议 D7 克制的审美反馈）
      */
     @Transactional
     public void heart(Long zoneId, HeartRequest req) {
@@ -65,43 +64,32 @@ public class FeedbackService {
         event.setToUser(to);
         event.setType(FeedbackType.valueOf(req.type().toUpperCase()));
         feedbackRepository.save(event);
-
-        // 被认可即时反映到歌品值（点赞率的正向事件）
-        recalcTasteScore(to.getId());
+        // 微光提示推送：WS 接入后在此定向推送给 to（docs/05 反馈服务）
     }
 
-    /** 域后个人战报：按归属用户聚合红心眼/收藏/特效次数 */
+    /** 域后个人战报（保留）：按归属用户聚合 收藏/点赞/emoji */
     public ZoneReportDTO report(Long zoneId) {
         var zone = zoneRepository.findById(zoneId)
                 .orElseThrow(() -> new BizException(ResultCode.ZONE_NOT_FOUND));
         List<FeedbackEvent> events = feedbackRepository.findByZoneId(zoneId);
 
-        Map<Long, ZoneReportDTO.Entry> agg = new LinkedHashMap<>();
+        Map<Long, long[]> agg = new LinkedHashMap<>();  // userId -> [collect, like, emoji]
+        Map<Long, String> names = new LinkedHashMap<>();
         for (FeedbackEvent e : events) {
-            ZoneReportDTO.Entry cur = agg.get(e.getToUser().getId());
-            long hearts = (cur != null ? cur.heartCount() : 0) + (e.getType() == FeedbackType.HEART ? 1 : 0);
-            long collects = (cur != null ? cur.collectCount() : 0) + (e.getType() == FeedbackType.COLLECT ? 1 : 0);
-            long requested = queueItemRepository.countByRequesterId(e.getToUser().getId());
-            agg.put(e.getToUser().getId(), new ZoneReportDTO.Entry(
-                    e.getToUser().getId(), e.getToUser().getName(),
-                    requested, hearts, collects, hearts + collects));
+            long[] counts = agg.computeIfAbsent(e.getToUser().getId(), k -> new long[3]);
+            names.putIfAbsent(e.getToUser().getId(), e.getToUser().getName());
+            switch (e.getType()) {
+                case COLLECT -> counts[0]++;
+                case LIKE -> counts[1]++;
+                case EMOJI_HEART, EMOJI_LAUGH -> counts[2]++;
+            }
         }
-        return new ZoneReportDTO(zone.getId(), zone.getName(), List.copyOf(agg.values()));
-    }
-
-    /**
-     * 歌品值 = 点歌被点赞率 × 100（docs/02 成长体系）
-     * 【假设】Demo 简化为：获赞总数 / 点歌总数（无点歌时为 0），上限 100
-     */
-    @Transactional
-    public double recalcTasteScore(Long userId) {
-        long requests = queueItemRepository.countByRequesterId(userId);
-        long likes = queueItemRepository.sumLikesByRequesterId(userId);
-        double score = requests == 0 ? 0 : Math.min(100.0, likes * 100.0 / requests);
-        userRepository.findById(userId).ifPresent(u -> {
-            u.setTasteScore(Math.round(score * 10) / 10.0);
-            userRepository.save(u);
-        });
-        return score;
+        List<ZoneReportDTO.Entry> entries = agg.entrySet().stream()
+                .map(en -> new ZoneReportDTO.Entry(
+                        en.getKey(), names.get(en.getKey()),
+                        queueItemRepository.countByZoneIdAndRequesterId(zoneId, en.getKey()),
+                        en.getValue()[0], en.getValue()[1], en.getValue()[2]))
+                .toList();
+        return new ZoneReportDTO(zone.getId(), zone.getName(), entries);
     }
 }

@@ -2,6 +2,8 @@
 
 基于 **Spring Boot 3.3 + Java 17 + Spring Data JPA** 的后端 Demo，功能模块与 `../docs/01~04` 一一对应。
 
+> **v2 变更（2026-09-24 第二次会议）**：队列改 FIFO（得分公式废除）、新增上传冷却（10 分钟）、标签过滤双模式（BAN/ALLOW）、公开/私密域（密码/邀请码 + 成员制 + 全员退出自动消失）、图片分享绑定上传歌曲（+撤回+半小时图片流）、关注体系、emoji 轻互动、歌品值移除（去游戏化，**域后战报保留**）。
+
 > **技术栈说明（假设标注）**：docs/05 原定后端为 FastAPI（Python），应开发要求改用 Spring Boot 实现。功能模块、接口语义与文档保持一致；docs/05 的技术选型一节待同步修订。
 
 ## 快速开始
@@ -53,31 +55,32 @@ server/
 
 | 方法 | 路径 | 说明 | 对应文档机制 |
 |---|---|---|---|
-| GET | `/zones/active?scene=` | 活跃域列表（只推活跃域） | docs/02 第 2 步 |
-| POST | `/zones` | 创建域（≥3 首歌校验） | docs/02 第 1 步 |
-| GET | `/zones/{id}` | 域详情（播放中+队列+碎片） | docs/01 三件套 |
+| GET | `/zones/active?scene=` | 活跃公开域列表（私密域不分发） | docs/02 第 2 步 + D2 |
+| POST | `/zones` | 创建域（≥3 首 + 公开/私密 + 过滤双模式 + 番茄钟） | docs/02 第 1 步 + D2/D5 |
+| POST | `/zones/{id}/join` | 进入域（私密域密码/邀请码鉴权） | D2 |
+| POST | `/zones/{id}/leave` | 退出域（全员退出自动消失） | D2 |
+| GET | `/zones/{id}` | 域详情（播放中 + FIFO 队列 + 动态区 1-2 张） | docs/01 三件套 |
 | POST | `/zones/{id}/end` | 结束域 | docs/02 第 5 步 |
-| POST | `/zones/{zoneId}/queue` | 点歌（黑名单校验→时段白名单→入队） | 决议 D1/D3 |
-| POST | `/queue/{itemId}/like` | 点赞（重算队列得分） | 队列公式 |
-| POST | `/zones/{zoneId}/moments` | 发碎片（自动挂当前配乐） | docs/02 第 4 步 |
-| GET | `/zones/{zoneId}/moments` | 碎片墙 | docs/01 |
-| POST | `/zones/{zoneId}/heart` | 红心/收藏（归属点歌人） | 决议 D2 |
-| GET | `/zones/{zoneId}/report` | 域后个人战报 | 决议 D2 |
-| GET | `/tracks/search?keyword=` | 点歌搜曲 | — |
-| GET | `/users/{userId}/profile` | 我的页（歌品值+统计） | docs/02 成长体系 |
+| POST | `/zones/{zoneId}/queue` | 上传歌曲（冷却→过滤→时段→FIFO 队尾） | D3/D4/D5 |
+| GET | `/zones/{zoneId}/cooldown?userId=` | 上传冷却剩余秒数 | D4 |
+| POST | `/queue/{itemId}/like` | 点赞（仅信号，不影响顺序） | D3/D7 |
+| POST | `/zones/{zoneId}/moments` | 发图片分享（绑定上传歌曲/当前播放） | D6 |
+| GET | `/zones/{zoneId}/moments/feed` | 半小时图片流（动态详情页） | D6 |
+| DELETE | `/moments/{momentId}?userId=` | 撤回图片（仅本人） | D6 |
+| POST | `/zones/{zoneId}/heart` | 互动反馈（COLLECT/LIKE/EMOJI_*，收藏触发微光） | D7 |
+| GET | `/zones/{zoneId}/report` | 域后个人战报（保留） | 用户确认保留 |
+| POST/DELETE | `/users/{userId}/follow?fromUserId=` | 关注 / 取关 | D7 |
+| GET | `/users/{userId}/following` | 我的关注列表 | D7 |
+| GET | `/tracks/search?keyword=` | 上传搜曲 | — |
+| GET | `/users/{userId}/profile` | 我的页（上传/获赞/分享/关注，无歌品值） | D7 |
 
-### 队列得分公式（QueueService 实现）
-
-```
-score = 点赞数 × 2 + 域主加成 × 3 − 该用户近 1 小时已播点歌数 × 1.5
-```
-
-### 点歌准入流程
+### 上传准入流程（v2）
 
 ```
-点歌 → ① 曲风黑名单校验（命中 → 3002 拒绝）
-     → ② 番茄钟时段白名单校验（不符合 → 入 PRESET 预存队列，不报错，3003 提示）
-     → ③ 计算初始得分 → 入 QUEUED 活跃队列
+上传 → ① 冷却检查（10 分钟内已传 → 3005 拒绝，返回剩余秒数）
+     → ② 域级标签过滤（BAN 命中 → 3002 / ALLOW 不含 → 3009）
+     → ③ 番茄钟时段白名单（不符合 → 入 PRESET 预存队列）
+     → ④ 入队尾（FIFO = createdAt 升序，无排序模型）
 ```
 
 ## 假设标注（文档未明确处的决策）

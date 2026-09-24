@@ -9,8 +9,8 @@ import java.util.List;
 import java.util.Set;
 
 /**
- * 创建域请求（docs/02 第 1 步）
- * 门槛：≥3 首歌 + 场景命名；可附带曲风黑名单与番茄钟配置
+ * 创建域请求（docs/02 第 1 步，v2：2026-09-24 会议）
+ * 门槛：≥3 首歌 + 场景命名；可见性（公开/私密）+ 标签过滤双模式 + 可选番茄钟
  */
 public record ZoneCreateRequest(
 
@@ -30,8 +30,18 @@ public record ZoneCreateRequest(
         @Size(min = 3, message = "创建域至少需要 3 首歌")
         List<@NotNull Long> trackIds,
 
-        /** 曲风黑名单（决议 D1），可空 */
-        Set<@Size(max = 32) String> bannedTags,
+        /** 可见性：PUBLIC（默认）/ PRIVATE（决议 D2） */
+        String visibility,
+
+        /** 私密域密码（visibility=PRIVATE 时与 inviteCode 至少其一，服务层校验） */
+        @Size(max = 32)
+        String password,
+
+        /** 过滤模式：BAN=禁止含（默认）/ ALLOW=仅允许含（决议 D5） */
+        String filterMode,
+
+        /** 过滤标签集合（BAN 时为黑名单，ALLOW 时为白名单），可空 */
+        Set<@Size(max = 32) String> filterTags,
 
         /** 域风格标签（展示用），可空 */
         Set<@Size(max = 32) String> tags,

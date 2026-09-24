@@ -10,6 +10,7 @@ public record ZoneSummaryDTO(
         Integer listeners,
         String host,
         String coverColor,
+        String visibility,        // PUBLIC / PRIVATE（私密域不进推荐列表，仅供搜索命中展示标识）
         Set<String> tags,
         NowPlayingDTO nowPlaying
 ) {}
