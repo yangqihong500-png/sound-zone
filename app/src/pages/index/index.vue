@@ -106,7 +106,7 @@ function goCreate() {
 <style lang="scss" scoped>
 .page {
   padding: $sz-gap-md;
-  padding-bottom: 200rpx; /* 为悬浮按钮留位 */
+  padding-bottom: 280rpx; /* 为悬浮按钮 + tabBar 留位，确保最后一项不被遮挡 */
 
   &__list {
     margin-top: $sz-gap-md;
@@ -180,12 +180,14 @@ function goCreate() {
   padding: 80rpx 0;
 }
 
-/* 悬浮圆形玻璃按钮：轻软阴影 + 透明悬浮感 */
+/* 悬浮圆形玻璃按钮：轻软阴影 + 透明悬浮感
+ * 注意：首页是 tabBar 页面，底部有原生 tabBar（约 50px ≈ 100rpx），
+ * 故 bottom 需抬高到 tabBar 之上，避免被遮挡；再加安全区适配全面屏 */
 .fab {
   position: fixed;
   left: 50%;
   transform: translateX(-50%);
-  bottom: calc(40rpx + env(safe-area-inset-bottom));
+  bottom: calc(110rpx + env(safe-area-inset-bottom));
   padding: 24rpx 64rpx;
   border-radius: 999rpx;
   box-shadow: $sz-shadow-float;

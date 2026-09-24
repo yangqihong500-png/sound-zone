@@ -15,6 +15,21 @@ npm run dev:mp-weixin    # 微信小程序开发（产物 → dist/dev/mp-weixin
 npm run build:mp-weixin  # 构建微信小程序产物 → dist/build/mp-weixin
 ```
 
+## 前后端联调
+
+前端数据层已切换到真实后端（Spring Boot，见 `../server/`）。
+
+1. 先在 VSCode 启动后端（端口 8080，前缀 `/api`），确认可访问：`http://localhost:8080/api/zones/active`
+2. 在 HBuilderX 运行前端 H5
+3. 后端 `CorsConfig` 已放行 `http://localhost:*` 与 `http://127.0.0.1:*`，跨域已处理
+
+关键文件：
+- `src/api/request.js`：统一请求层（baseURL=`http://localhost:8080/api`，响应解包 code=0）
+- `src/api/constants.js`：联调常量（`CURRENT_USER_ID=4` 对应种子数据 octave 用户、`CURRENT_USER_NAME='octave'`）
+- `src/api/mock.js`：暴露与后端 18 个接口对应的函数（文件名保留 mock，内部已走真实请求）
+
+> ⚠️ Demo 无登录体系，userId 硬编码为 4（后端种子数据 octave 用户）。若重置后端数据库导致 ID 变化，需同步改 `constants.js`。
+
 ## 目录结构
 
 ```
