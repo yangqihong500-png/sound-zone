@@ -10,14 +10,14 @@
     <view v-else class="moment-card__image" :style="{ backgroundColor: moment.color }" />
     <view class="moment-card__body">
       <view class="moment-card__user">
-        <view class="moment-card__avatar">{{ moment.user[0].toUpperCase() }}</view>
-        <text class="moment-card__name">{{ moment.user }}</text>
+        <view class="moment-card__avatar">{{ (moment.by || moment.user || '?')[0].toUpperCase() }}</view>
+        <text class="moment-card__name">{{ moment.by || moment.user }}</text>
         <text v-if="own" class="moment-card__withdraw" @click.stop="$emit('withdraw', moment.id)">撤回</text>
       </view>
       <text v-if="moment.text" class="moment-card__text">{{ moment.text }}</text>
       <view class="moment-card__meta">
         <text class="moment-card__track">♪ {{ moment.track }}</text>
-        <text class="moment-card__time">{{ formatTime(moment.time) }}</text>
+        <text class="moment-card__time">{{ moment.time }}</text>
       </view>
     </view>
   </view>
@@ -26,7 +26,9 @@
 <script setup>
 /**
  * MomentCard 图片分享卡片（v2：2026-09-24 决议 D6）
- * @prop {Object} moment { id, userId, user, imageUrl, color, text, track, time }
+ * @prop {Object} moment 后端 MomentDTO：{ id, text, imageUrl, color, track, by, time }
+ *   - by: 上传者名；time: 已格式化的 "HH:mm" 字符串（后端 DateTimeFormatter 处理）
+ *   - 兼容旧 mock 字段：user / time(时间戳)
  * @prop {Boolean} own 是否本人分享（显示撤回按钮）
  * @emit withdraw(id) 撤回事件
  * 每条分享 = (场景, 图片, 关联歌曲) 三元组 —— 数据飞轮源头（docs/03）
@@ -37,11 +39,6 @@ defineProps({
 })
 
 defineEmits(['withdraw'])
-
-function formatTime(ts) {
-  const d = new Date(ts)
-  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
-}
 </script>
 
 <style lang="scss" scoped>

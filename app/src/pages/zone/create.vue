@@ -98,6 +98,21 @@
         </view>
       </view>
 
+      <!-- 初始歌单（建域门槛：≥3 首，docs/02 第 1 步） -->
+      <view class="section">
+        <text class="section__label">初始歌单（至少 3 首）</text>
+        <view class="capsules">
+          <view
+            v-for="t in seedTracks"
+            :key="t.id"
+            class="capsule"
+            :class="{ 'capsule--active': form.trackIds.includes(t.id) }"
+            @click="toggleTrack(t.id)"
+          >{{ t.title }}</view>
+        </view>
+        <text class="field__hint">已选 {{ form.trackIds.length }} 首</text>
+      </view>
+
       <view class="bottom-spacer" />
     </scroll-view>
 
@@ -119,13 +134,25 @@
  * 提交后跳转域详情（初始歌单选择属后续迭代，Demo 以空队列开局）
  */
 import { ref, computed, reactive } from 'vue'
-import { SCENES, TAG_CATALOG, createZone } from '@/api/mock.js'
+import { onLoad } from '@dcloudio/uni-app'
+import { SCENES, TAG_CATALOG, createZone, searchTracks } from '@/api/mock.js'
 
 const statusBarHeight = ref(uni.getSystemInfoSync().statusBarHeight || 20)
 
 const tagCatalog = TAG_CATALOG
 const sceneOptions = SCENES.filter((s) => s !== '全部')
 const allTags = Object.values(TAG_CATALOG).flat()
+
+// 初始歌单候选曲目（简化：展示曲库前若干首，用户点选）
+const seedTracks = ref([])
+
+onLoad(async () => {
+  try {
+    seedTracks.value = await searchTracks('')
+  } catch (e) {
+    seedTracks.value = []
+  }
+})
 
 const form = reactive({
   name: '',
@@ -135,13 +162,21 @@ const form = reactive({
   filterTags: [],
   visibility: 'PUBLIC',
   password: '',
+  trackIds: [],
 })
 
-const canCreate = computed(() => form.name.trim().length > 0 && form.scene)
+const canCreate = computed(() =>
+  form.name.trim().length > 0 && form.scene && form.trackIds.length >= 3
+)
 
 function toggleTag(list, tag) {
   const i = list.indexOf(tag)
   i >= 0 ? list.splice(i, 1) : list.push(tag)
+}
+
+function toggleTrack(id) {
+  const i = form.trackIds.indexOf(id)
+  i >= 0 ? form.trackIds.splice(i, 1) : form.trackIds.push(id)
 }
 
 function onPrivacyChange(e) {
@@ -150,22 +185,27 @@ function onPrivacyChange(e) {
 
 async function onCreate() {
   if (!canCreate.value) {
-    uni.showToast({ title: '请先填写主题和场景', icon: 'none' })
+    uni.showToast({ title: '请填写主题、场景并至少选 3 首歌', icon: 'none' })
     return
   }
-  const zone = await createZone({
-    name: form.name.trim(),
-    scene: form.scene,
-    tags: form.tags,
-    filterMode: form.filterMode,
-    filterTags: form.filterTags,
-    visibility: form.visibility,
-    password: form.password || null,
-  })
-  uni.showToast({ title: '域已创建', icon: 'success' })
-  setTimeout(() => {
-    uni.redirectTo({ url: `/pages/zone/detail?id=${zone.id}` })
-  }, 600)
+  try {
+    const zone = await createZone({
+      name: form.name.trim(),
+      scene: form.scene,
+      tags: form.tags,
+      filterMode: form.filterMode,
+      filterTags: form.filterTags,
+      visibility: form.visibility,
+      password: form.password || null,
+      trackIds: form.trackIds,
+    })
+    uni.showToast({ title: '域已创建', icon: 'success' })
+    setTimeout(() => {
+      uni.redirectTo({ url: `/pages/zone/detail?id=${zone.id}` })
+    }, 600)
+  } catch (e) {
+    uni.showToast({ title: e.message || '创建失败', icon: 'none' })
+  }
 }
 
 function goBack() {

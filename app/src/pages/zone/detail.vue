@@ -49,7 +49,7 @@
               class="moment-scroll__item"
               @click="goMoments"
             >
-              <moment-card :moment="m" :own="m.userId === 'me'" @withdraw="onWithdraw" />
+              <moment-card :moment="m" :own="m.by === CURRENT_USER_NAME" @withdraw="onWithdraw" />
             </view>
           </view>
         </scroll-view>
@@ -127,6 +127,7 @@ import { onLoad } from '@dcloudio/uni-app'
 import {
   getZoneDetail, getCooldown, collectTrack, withdrawMoment,
 } from '@/api/mock.js'
+import { CURRENT_USER_NAME } from '@/api/constants.js'
 import QueueItem from '@/components/queue-item/queue-item.vue'
 import MomentCard from '@/components/moment-card/moment-card.vue'
 import UploadSongPopup from '@/components/upload-song-popup/upload-song-popup.vue'
@@ -207,7 +208,7 @@ function onMore() {
 
 async function onWithdraw(momentId) {
   await withdrawMoment(zone.value.id, momentId)
-  zone.value.moments = zone.moments.filter((m) => m.id !== momentId)
+  zone.value.moments = zone.value.moments.filter((m) => m.id !== momentId)
   toast('已撤回')
 }
 

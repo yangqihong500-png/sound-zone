@@ -10,7 +10,7 @@
     <scroll-view class="page__body" scroll-y>
       <text class="window-hint">展示半小时内上传的图片</text>
       <view v-for="m in moments" :key="m.id" class="feed-item">
-        <moment-card :moment="m" :own="m.userId === 'me'" @withdraw="onWithdraw" />
+        <moment-card :moment="m" :own="m.by === CURRENT_USER_NAME" @withdraw="onWithdraw" />
         <!-- emoji 轻互动（爱心/大笑/点赞，决议 D7） -->
         <view class="emoji-row">
           <text
@@ -36,6 +36,7 @@
 import { ref } from 'vue'
 import { onLoad } from '@dcloudio/uni-app'
 import { getMomentFeed, withdrawMoment } from '@/api/mock.js'
+import { CURRENT_USER_NAME } from '@/api/constants.js'
 import MomentCard from '@/components/moment-card/moment-card.vue'
 
 const moments = ref([])

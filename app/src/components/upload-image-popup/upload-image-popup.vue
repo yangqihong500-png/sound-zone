@@ -73,16 +73,16 @@ function chooseImage() {
 
 async function onUpload() {
   if (!imageUrl.value) return
-  const res = await uploadImage(props.zoneId, {
-    imageUrl: imageUrl.value,
-    trackTitle: props.bindTrack,
-  })
-  if (res.code === 0) {
-    emit('uploaded', res.moment)
+  try {
+    const moment = await uploadImage(props.zoneId, {
+      imageUrl: imageUrl.value,
+      trackTitle: props.bindTrack,
+    })
+    emit('uploaded', moment)
     emit('toast', '已分享到动态区')
     emit('close')
-  } else {
-    emit('toast', res.message)
+  } catch (e) {
+    emit('toast', e.message || '上传失败')
   }
 }
 

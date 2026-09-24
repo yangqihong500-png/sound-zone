@@ -83,14 +83,15 @@ watch(keyword, async (kw) => {
 
 async function onPick(track) {
   if (props.cooldown > 0) return // 冷却中禁止上传
-  const res = await uploadSong(props.zoneId, track.id)
-  if (res.code === 0) {
-    emit('uploaded', res.queueItem)
+  try {
+    // 真实接口：成功返回 QueueItemDTO，失败由 request 层 reject（带 message）
+    const item = await uploadSong(props.zoneId, track.id)
+    emit('uploaded', item)
     emit('toast', '已加入歌单')
     emit('close')
-  } else {
+  } catch (e) {
     // 冷却 / 过滤拒绝：轻量提示（决议：不使用强弹窗打断）
-    emit('toast', res.message)
+    emit('toast', e.message || '上传失败')
   }
 }
 
