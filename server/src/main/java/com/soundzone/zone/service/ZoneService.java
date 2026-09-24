@@ -45,14 +45,14 @@ public class ZoneService {
      * 场景名归一化映射（docs/02 第 1 步：避免流量过度分散）
      * 【假设】Demo 用静态映射表；正式版为文本聚类模型（docs/03 场景归一化）
      */
-    private static final Map<String, String> SCENE_ALIASES = Map.of(
-            "自习室", "自习", "图书馆刷题", "自习", "考研", "自习",
-            "夜跑", "健身", "健身房", "健身", "铁馆", "健身",
-            "solo trip", "旅行", "旅游", "旅行",
-            "拼豆", "手工", "手作", "手工",
-            "写代码", "工作", "加班", "工作",
-            "深夜", "深夜", "睡前", "深夜"
-    );
+        private static final Map<String, String> SCENE_ALIASES = Map.ofEntries(
+            Map.entry("自习室", "自习"), Map.entry("图书馆刷题", "自习"), Map.entry("考研", "自习"),
+            Map.entry("夜跑", "健身"), Map.entry("健身房", "健身"), Map.entry("铁馆", "健身"),
+            Map.entry("solo trip", "旅行"), Map.entry("旅游", "旅行"),
+            Map.entry("拼豆", "手工"), Map.entry("手作", "手工"),
+            Map.entry("写代码", "工作"), Map.entry("加班", "工作"),
+            Map.entry("深夜", "深夜"), Map.entry("睡前", "深夜")
+        );
 
     /** 首页/发现页：只推活跃域，按同频人数排序（docs/02 第 2 步） */
     public List<ZoneSummaryDTO> listActive(String scene) {
