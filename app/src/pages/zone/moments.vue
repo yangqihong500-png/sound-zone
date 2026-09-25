@@ -10,7 +10,12 @@
     <scroll-view class="page__body" scroll-y>
       <text class="window-hint">展示半小时内上传的图片</text>
       <view v-for="m in moments" :key="m.id" class="feed-item">
-        <moment-card :moment="m" :own="m.by === CURRENT_USER_NAME" @withdraw="onWithdraw" />
+        <moment-card
+          :moment="m"
+          :own="m.userId === CURRENT_USER_ID"
+          @withdraw="onWithdraw"
+          @user="goUserHome"
+        />
         <!-- emoji 轻互动（爱心/大笑/点赞，决议 D7） -->
         <view class="emoji-row">
           <text
@@ -36,7 +41,7 @@
 import { ref } from 'vue'
 import { onLoad } from '@dcloudio/uni-app'
 import { getMomentFeed, withdrawMoment } from '@/api/mock.js'
-import { CURRENT_USER_NAME } from '@/api/constants.js'
+import { CURRENT_USER_ID } from '@/api/constants.js'
 import MomentCard from '@/components/moment-card/moment-card.vue'
 
 const moments = ref([])
@@ -63,6 +68,21 @@ async function onWithdraw(momentId) {
   await withdrawMoment(zoneId, momentId)
   moments.value = moments.value.filter((m) => m.id !== momentId)
   uni.showToast({ title: '已撤回', icon: 'none' })
+}
+
+/**
+ * 点击动态上传者 → 跳转用户主页（容错：id 无效不跳；本人跳"我的"）
+ */
+function goUserHome(userId) {
+  if (!userId || !Number.isInteger(userId) || userId <= 0) {
+    uni.showToast({ title: '用户信息无效', icon: 'none' })
+    return
+  }
+  if (userId === CURRENT_USER_ID) {
+    uni.switchTab({ url: '/pages/user/index' })
+    return
+  }
+  uni.navigateTo({ url: `/pages/user/home?userId=${userId}` })
 }
 
 function goBack() {

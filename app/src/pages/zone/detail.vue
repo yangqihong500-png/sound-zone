@@ -49,7 +49,12 @@
               class="moment-scroll__item"
               @click="goMoments"
             >
-              <moment-card :moment="m" :own="m.by === CURRENT_USER_NAME" @withdraw="onWithdraw" />
+              <moment-card
+                :moment="m"
+                :own="m.userId === CURRENT_USER_ID"
+                @withdraw="onWithdraw"
+                @user="goUserHome"
+              />
             </view>
           </view>
         </scroll-view>
@@ -127,7 +132,7 @@ import { onLoad } from '@dcloudio/uni-app'
 import {
   getZoneDetail, getCooldown, collectTrack, withdrawMoment,
 } from '@/api/mock.js'
-import { CURRENT_USER_NAME } from '@/api/constants.js'
+import { CURRENT_USER_ID } from '@/api/constants.js'
 import QueueItem from '@/components/queue-item/queue-item.vue'
 import MomentCard from '@/components/moment-card/moment-card.vue'
 import UploadSongPopup from '@/components/upload-song-popup/upload-song-popup.vue'
@@ -214,6 +219,22 @@ async function onWithdraw(momentId) {
 
 function goMoments() {
   uni.navigateTo({ url: `/pages/zone/moments?id=${zone.value.id}` })
+}
+
+/**
+ * 点击动态上传者 → 跳转用户主页
+ * 容错：userId 缺失/非法不跳转；本人则跳"我的"tabBar 页
+ */
+function goUserHome(userId) {
+  if (!userId || !Number.isInteger(userId) || userId <= 0) {
+    toast('用户信息无效')
+    return
+  }
+  if (userId === CURRENT_USER_ID) {
+    uni.switchTab({ url: '/pages/user/index' })
+    return
+  }
+  uni.navigateTo({ url: `/pages/user/home?userId=${userId}` })
 }
 
 function goBack() {

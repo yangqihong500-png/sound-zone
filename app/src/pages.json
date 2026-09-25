@@ -47,6 +47,13 @@
         "navigationBarTitleText": "动态",
         "navigationStyle": "custom"
       }
+    },
+    {
+      "path": "pages/user/home",
+      "style": {
+        "navigationBarTitleText": "用户主页",
+        "navigationStyle": "custom"
+      }
     }
   ],
   "globalStyle": {

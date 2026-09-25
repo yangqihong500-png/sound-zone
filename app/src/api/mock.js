@@ -127,3 +127,18 @@ export function heartTrack(zoneId, trackId, type = 'LIKE') {
 export function getCurrentUser() {
   return get(`/users/${CURRENT_USER_ID}/profile`)
 }
+
+/** 任意用户主页信息 → GET /users/{userId}/profile（用户不存在时 reject，message 来自后端 2003） */
+export function getUserProfile(userId) {
+  return get(`/users/${userId}/profile`)
+}
+
+/** 关注用户 → POST /users/{userId}/follow?fromUserId=（当前用户关注目标用户） */
+export function followUser(userId) {
+  return post(`/users/${userId}/follow`, { fromUserId: CURRENT_USER_ID })
+}
+
+/** 取关 → DELETE /users/{userId}/follow?fromUserId= */
+export function unfollowUser(userId) {
+  return del(`/users/${userId}/follow`, { fromUserId: CURRENT_USER_ID })
+}
