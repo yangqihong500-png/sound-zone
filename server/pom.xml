@@ -50,13 +50,18 @@
             <artifactId>spring-boot-starter-data-jpa</artifactId>
         </dependency>
 
-        <!-- H2 内存数据库：Demo 开箱即用，无需安装 DB。
-             【假设】生产环境切换为 PostgreSQL（docs/05 数据层选型），
-             仅需更换 driver 依赖与 application.yml 数据源配置，实体无需改动 -->
+        <!-- MySQL 8 驱动（生产/开发主数据源，2026-09-24 由 H2 切换而来） -->
+        <dependency>
+            <groupId>com.mysql</groupId>
+            <artifactId>mysql-connector-j</artifactId>
+            <scope>runtime</scope>
+        </dependency>
+
+        <!-- H2 内存数据库：仅单元测试使用（见 src/test），主数据源已切 MySQL -->
         <dependency>
             <groupId>com.h2database</groupId>
             <artifactId>h2</artifactId>
-            <scope>runtime</scope>
+            <scope>test</scope>
         </dependency>
 
         <!-- Lombok：消除实体/DTO 样板代码 -->

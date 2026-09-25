@@ -10,37 +10,33 @@ spring:
     name: sound-zone-server
 
   # ===================== 数据源 =====================
-  # Demo 使用 H2 内存库，启动即建表（JPA ddl-auto）
+  # MySQL 8（Docker，见 ../../docker-compose.yml）
+  # 连接参数说明：
+  #   useUnicode/characterEncoding → utf8mb4 中文与 emoji
+  #   serverTimezone             → 与容器 TZ=Asia/Shanghai 对齐
+  #   useSSL=false               → 本地开发关闭 SSL
+  #   allowPublicKeyRetrieval    → MySQL 8 caching_sha2_password 非 SSL 连接所需
   datasource:
-    url: jdbc:h2:mem:soundzone;DB_CLOSE_DELAY=-1;MODE=MySQL
-    driver-class-name: org.h2.Driver
-    username: sa
-    password: ""
-
-  # H2 控制台：http://localhost:8080/api/h2-console（仅 Demo 开启）
-  h2:
-    console:
-      enabled: true
-      path: /h2-console
+    url: 'jdbc:mysql://127.0.0.1:3306/soundzone?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true'
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    username: soundzone
+    password: soundzone123
+    hikari:
+      maximum-pool-size: 10
+      minimum-idle: 2
+      connection-timeout: 30000
 
   # ===================== JPA =====================
   jpa:
     hibernate:
+      # update：首次启动自动建表（等价于 schema.sql），之后增量更新、不丢数据（平滑迁移）
+      # 若需让 Hibernate 校验与 schema.sql 完全一致，可先手动导库后改为 validate
       ddl-auto: update
     open-in-view: false
     properties:
       hibernate:
         format_sql: false
-
-# ===================== 生产环境数据源示例（PostgreSQL，docs/05）=====================
-# spring:
-#   datasource:
-#     url: jdbc:postgresql://localhost:5432/soundzone
-#     username: soundzone
-#     password: ${DB_PASSWORD}
-#   jpa:
-#     hibernate:
-#       ddl-auto: validate
+        dialect: org.hibernate.dialect.MySQLDialect
 
 logging:
   level:

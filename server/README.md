@@ -6,50 +6,94 @@
 
 > **技术栈说明（假设标注）**：docs/05 原定后端为 FastAPI（Python），应开发要求改用 Spring Boot 实现。功能模块、接口语义与文档保持一致；docs/05 的技术选型一节待同步修订。
 
+> **数据源（2026-09-24 变更）**：由 H2 内存库切换为 **MySQL 8（Docker）**。表结构由 JPA 自动生成，完整 DDL 见 `sql/schema.sql`。
+
 ## 快速开始
 
-需要 **JDK 17+** 与 **Maven 3.8+**（或用 IntelliJ IDEA 直接打开本目录，IDE 可自动配置两者）：
+需要 **JDK 17+**、**Maven 3.8+** 与 **Docker**（用于 MySQL 8）。
+
+**第 1 步：启动 MySQL（项目根目录）**
 
 ```bash
-mvn spring-boot:run          # 启动，端口 8080，统一前缀 /api
-mvn clean package            # 打包 target/sound-zone-server-0.1.0.jar
+cd ..                      # 回到 sound-zone/ 根目录
+docker compose up -d       # 启动 MySQL 8 容器（端口 3306，数据卷持久化）
+docker compose ps          # 确认 mysql 容器 healthy
+```
+
+**第 2 步：启动后端**
+
+```bash
+cd server
+mvn spring-boot:run        # 首次启动自动建表 + 注入种子数据
+mvn clean package          # 打包 target/sound-zone-server-0.1.0.jar
 ```
 
 - 接口前缀：`http://localhost:8080/api`
-- H2 控制台：`http://localhost:8080/api/h2-console`（JDBC URL：`jdbc:h2:mem:soundzone`）
-- 启动自动注入与前端 mock.js 一致的演示数据（3 个域 + 曲目 + 队列 + 碎片 + 番茄钟配置）
+- 首次启动自动建表（`ddl-auto=update`）并注入演示数据（3 个域 + 曲目 + 队列 + 图片分享 + 番茄钟）
+
+## MySQL 数据库（Docker + Sequel Ace）
+
+### 容器配置
+
+见项目根目录 `../docker-compose.yml`：`mysql:8.0`、端口 `3306:3306`、utf8mb4 字符集、命名卷 `mysql_data` 持久化、健康检查。
+
+### Sequel Ace 连接信息
+
+| 项 | 值 |
+|---|---|
+| 主机 Host | `127.0.0.1` |
+| 端口 Port | `3306` |
+| 用户名 User | `soundzone`（业务账号）或 `root`（管理员） |
+| 密码 Password | `soundzone123`（业务）或 `root123456`（root） |
+| 数据库 Database | `soundzone` |
+
+> Sequel Ace 里选 **Socket/Standard 均可**，用 Standard TCP 填上表即可。表结构见 `sql/schema.sql`（也可在 Sequel Ace 里查看 JPA 自动建出的 12 张表）。
+
+### 数据迁移说明
+
+原有数据在 H2 **内存库**中（每次重启即清空，无持久化历史数据），种子数据写在 `DataInitializer.java` 里。因此切换 MySQL **无需手动搬数据**：
+
+1. 首次启动后端 → JPA 自动建表（等价于 `schema.sql`）→ `DataInitializer` 自动注入种子数据
+2. 之后的数据全部落盘到 MySQL 数据卷，**重启不再丢失**
+
+> 若要清空重来：`docker compose down -v` 删除数据卷，再 `up -d` 重建。
 
 ## 项目结构
 
 ```
 server/
-├── pom.xml                         # 依赖：web / validation / data-jpa / h2 / lombok
+├── pom.xml                         # 依赖：web / validation / data-jpa / mysql-connector-j / lombok
+├── sql/schema.sql                  # 数据库表结构 DDL（12 张表，供 Sequel Ace 参考）
 └── src/main/
-    ├── resources/application.yml   # 端口/数据源/JPA 配置（含 PostgreSQL 生产示例）
+    ├── resources/application.yml   # 端口/MySQL 数据源/JPA 配置
     └── java/com/soundzone/
         ├── SoundZoneApplication.java
         ├── common/                 # 统一响应 Result、错误码 ResultCode、
         │                           #   业务异常 BizException、全局异常处理
         ├── config/                 # CorsConfig（前端联调）、DataInitializer（种子数据）
         ├── user/                   # 用户：entity / repository / service / controller / dto
-        ├── track/                  # 曲目（含曲风标签）
-        ├── zone/                   # 域 + 番茄钟时段（ZonePeriod）
-        ├── queue/                  # 点歌队列（核心机制）
-        ├── moment/                 # 碎片（三元组数据）
-        └── feedback/               # 红心/收藏 + 战报（审美反馈）
+        ├── track/                  # 曲目（含五类标签）
+        ├── zone/                   # 域 + 番茄钟时段（ZonePeriod）+ 域成员（ZoneMember）
+        ├── queue/                  # 上传队列（FIFO + 冷却）
+        ├── moment/                 # 图片分享（三元组数据）
+        └── feedback/               # 收藏/点赞/emoji + 战报（审美反馈）
 ```
 
 ## 数据库表结构
 
+共 12 张表（9 个实体 + 4 张 `@ElementCollection` 关联表），完整 DDL 见 `sql/schema.sql`（JPA 首次启动自动生成）。
+
 | 表 | 说明 | 关键字段 |
 |---|---|---|
-| `sz_user` | 用户 | name, taste_score（歌品值） |
-| `sz_track` + `sz_track_tags` | 曲目 + 曲风标签集合 | title, artist, source, tags |
-| `sz_zone` + `sz_zone_tags` + `sz_zone_banned_tags` | 域 + 风格标签 + 曲风黑名单 | name, scene, host_id, status, listener_count |
+| `sz_user` | 用户 | name, avatar_color |
+| `sz_track` + `sz_track_tags` | 曲目 + 五类标签集合 | title, artist, source, tags |
+| `sz_zone` + `sz_zone_tags` + `sz_zone_filter_tags` | 域 + 风格标签 + 过滤标签（黑/白名单） | name, scene, host_id, visibility, filter_mode, listener_count |
 | `sz_zone_period` + `sz_zone_period_tags` | 番茄钟时段 + 白名单 | order_index, duration_min, type, allowed_tags |
-| `sz_queue_item` | 点歌队列 | track_id, user_id, likes, host_bonus, score, status |
-| `sz_moment` | 碎片 | text, image_url, track_id（自动绑定配乐） |
-| `sz_feedback_event` | 反馈事件 | track_id, from_user_id, to_user_id, type |
+| `sz_zone_member` | 域成员（同频人数 + 全员退出自动消失） | zone_id, user_id |
+| `sz_queue_item` | 上传队列（FIFO） | track_id, user_id, likes, status |
+| `sz_moment` | 图片分享（三元组） | text, image_url, track_id, status |
+| `sz_feedback_event` | 反馈事件（收藏/点赞/emoji） | from_user_id, to_user_id, type |
+| `sz_follow` | 关注关系 | follower_id, followee_id |
 
 ## 接口清单（统一响应 `{code, msg, data}`，code=0 成功）
 
