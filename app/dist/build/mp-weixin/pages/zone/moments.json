@@ -1,7 +1,0 @@
-{
-  "navigationBarTitleText": "动态",
-  "navigationStyle": "custom",
-  "usingComponents": {
-    "moment-card": "../../components/moment-card/moment-card"
-  }
-}

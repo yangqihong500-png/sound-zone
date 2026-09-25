@@ -1,8 +1,0 @@
-{
-  "navigationBarTitleText": "同频",
-  "navigationBarBackgroundColor": "#FFFFFF",
-  "navigationBarTextStyle": "black",
-  "usingComponents": {
-    "zone-card": "../../components/zone-card/zone-card"
-  }
-}

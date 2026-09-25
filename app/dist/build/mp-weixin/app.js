@@ -1,1 +1,0 @@
-"use strict";Object.defineProperty(exports,Symbol.toStringTag,{value:"Module"});const e=require("./common/vendor.js");Math;const o={__name:"App",setup:o=>(e.onLaunch(()=>{console.log("同频 SoundZone 启动")}),()=>{})};function t(){return{app:e.createSSRApp(o)}}t().app.mount("#app"),exports.createApp=t;
