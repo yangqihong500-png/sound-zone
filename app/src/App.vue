@@ -32,16 +32,35 @@ page {
   box-shadow: $sz-shadow-soft;
 }
 
-/* 玻璃卡片：半透明 + 边缘高光 + 软阴影（与普通卡片有明确区分） */
+/* Frosted glass：只用于顶部栏、底部栏、悬浮按钮与半屏弹窗。 */
 .sz-glass {
   background: $sz-glass-bg;
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
+  backdrop-filter: blur(30px);
+  -webkit-backdrop-filter: blur(30px);
   border: 1rpx solid $sz-glass-border;
   border-radius: $sz-radius-lg;
   box-shadow: $sz-shadow-soft;
   box-sizing: border-box;
 }
+
+/* Clear glass：覆盖于图片上的标签与即时状态。 */
+.sz-glass-clear {
+  background: rgba(255, 255, 255, 0.18);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1rpx solid rgba(255, 255, 255, 0.32);
+  box-sizing: border-box;
+}
+
+/* Tinted glass：承载图片上的主要信息。颜色由组件内主题色叠加。 */
+.sz-glass-tinted {
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border-top: 1rpx solid rgba(255, 255, 255, 0.24);
+  box-sizing: border-box;
+}
+
+button::after { border: none; }
 
 /* 莫兰迪胶囊标签：低饱和浅底 */
 .sz-tag {

@@ -26,12 +26,16 @@ spring:
       minimum-idle: 2
       connection-timeout: 30000
 
+  servlet:
+    multipart:
+      max-file-size: 5MB
+      max-request-size: 6MB
+
   # ===================== JPA =====================
   jpa:
     hibernate:
-      # update：首次启动自动建表（等价于 schema.sql），之后增量更新、不丢数据（平滑迁移）
-      # 若需让 Hibernate 校验与 schema.sql 完全一致，可先手动导库后改为 validate
-      ddl-auto: update
+      # 现有库先执行 sql/migrations，再校验；不让自动 DDL 替代数据迁移。
+      ddl-auto: validate
     open-in-view: false
     properties:
       hibernate:
@@ -41,3 +45,31 @@ spring:
 logging:
   level:
     com.soundzone: info
+
+# 业务默认值均可用环境变量覆盖；独立游客与 Audius 默认可用，Demo 图片即时展示。
+soundzone:
+  # 独立产品 Demo 默认允许游客进入；公开部署可显式关闭并接入自己的账号体系。
+  guest-enabled: ${SOUNDZONE_GUEST_ENABLED:true}
+  # 默认写入可重复初始化的常驻演示用户与域；公开部署可关闭。
+  demo-data-enabled: ${SOUNDZONE_DEMO_DATA_ENABLED:true}
+  active-window-minutes: 30
+  presence-grace-seconds: 90
+  image-directory: ${SOUNDZONE_IMAGE_DIRECTORY:./data/images}
+  # 可把自有授权 MP3/M4A 放在这里，再通过 music.local-catalog 的 audio-file 登记。
+  audio-directory: ${SOUNDZONE_AUDIO_DIRECTORY:./data/audio}
+  admin-key: ${SOUNDZONE_ADMIN_KEY:}
+  allowed-origins: ${SOUNDZONE_ALLOWED_ORIGINS:http://localhost:*,http://127.0.0.1:*}
+  music:
+    # FIFO 公平性保护：超长混音、播客和数小时音频不进入曲库候选或队列。
+    max-track-duration-seconds: ${SOUNDZONE_MAX_TRACK_DURATION_SECONDS:600}
+    audius:
+      enabled: ${SOUNDZONE_AUDIUS_ENABLED:true}
+      base-url: ${SOUNDZONE_AUDIUS_BASE_URL:https://api.audius.co/v1}
+      app-name: ${SOUNDZONE_AUDIUS_APP_NAME:SoundZone}
+      api-key: ${SOUNDZONE_AUDIUS_API_KEY:}
+      bearer-token: ${SOUNDZONE_AUDIUS_BEARER_TOKEN:}
+      search-limit: 20
+      connect-timeout-seconds: 5
+      read-timeout-seconds: 10
+    # 已获授权的小曲库按 server/README.md 示例配置；仓库不附带版权未知音频。
+    local-catalog: []

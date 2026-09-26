@@ -1,185 +1,285 @@
 package com.soundzone.config;
 
-import com.soundzone.moment.entity.Moment;
+import com.soundzone.moment.entity.*;
 import com.soundzone.moment.repository.MomentRepository;
-import com.soundzone.queue.entity.QueueItem;
-import com.soundzone.queue.entity.QueueStatus;
+import com.soundzone.queue.entity.*;
 import com.soundzone.queue.repository.QueueItemRepository;
 import com.soundzone.track.entity.Track;
 import com.soundzone.track.repository.TrackRepository;
+import com.soundzone.track.service.MusicProperties;
+import com.soundzone.track.service.TrackDurationPolicy;
 import com.soundzone.user.entity.User;
 import com.soundzone.user.repository.UserRepository;
-import com.soundzone.zone.entity.FilterMode;
-import com.soundzone.zone.entity.PeriodType;
-import com.soundzone.zone.entity.Zone;
-import com.soundzone.zone.entity.ZoneMember;
-import com.soundzone.zone.entity.ZonePeriod;
-import com.soundzone.zone.entity.ZoneStatus;
-import com.soundzone.zone.entity.ZoneVisibility;
-import com.soundzone.zone.repository.ZoneMemberRepository;
-import com.soundzone.zone.repository.ZonePeriodRepository;
-import com.soundzone.zone.repository.ZoneRepository;
+import com.soundzone.zone.entity.*;
+import com.soundzone.zone.repository.*;
+
 import lombok.RequiredArgsConstructor;
+
 import org.springframework.boot.CommandLineRunner;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.LocalDateTime;
-import java.util.Set;
+import java.time.*;
+import java.util.*;
 
-/**
- * Demo 种子数据（v2：2026-09-24 会议后同步）
- * 覆盖：公开域 × 2（黑名单/白名单两种过滤模式）+ 私密域 × 1（含密码与邀请码）
- * 番茄钟、图片分享（绑定上传者歌曲）、成员与同频人数
- * 仅当数据库为空时初始化（H2 每次启动都是空库）
- */
+/** 幂等写入常驻演示用户和域；稳定标识避免重复，不影响普通用户创建的数据。 */
 @Component
 @RequiredArgsConstructor
+@Order(10)
+@ConditionalOnProperty(
+        name = "soundzone.demo-data-enabled",
+        havingValue = "true",
+        matchIfMissing = true)
 public class DataInitializer implements CommandLineRunner {
+    private static final List<DemoUser> USERS =
+            List.of(
+                    new DemoUser("study-host", "白桃乌龙", "#A8B8C8"),
+                    new DemoUser("run-host", "配速430", "#A9C4B5"),
+                    new DemoUser("travel-host", "城市漫游者", "#D9CFB8"),
+                    new DemoUser("night-host", "午夜留声机", "#C3B8D9"),
+                    new DemoUser("listener-1", "橘子海", "#E3C9CD"),
+                    new DemoUser("listener-2", "蓝色耳机", "#B8CDD9"),
+                    new DemoUser("listener-3", "风从窗边来", "#C9D4C5"),
+                    new DemoUser("listener-4", "今晚不熬夜", "#D7C8B5"));
 
-    private final UserRepository userRepository;
-    private final TrackRepository trackRepository;
-    private final ZoneRepository zoneRepository;
-    private final ZonePeriodRepository periodRepository;
-    private final ZoneMemberRepository memberRepository;
-    private final QueueItemRepository queueItemRepository;
-    private final MomentRepository momentRepository;
+    private static final List<DemoZone> ZONES =
+            List.of(
+                    new DemoZone(
+                            "study-host",
+                            "考研自习室",
+                            "自习",
+                            "#A8B8C8",
+                            Set.of("舒缓"),
+                            "写完这一页再休息 ☕"),
+                    new DemoZone(
+                            "run-host",
+                            "夜跑俱乐部",
+                            "健身",
+                            "#A9C4B5",
+                            Set.of("亢奋"),
+                            "今晚的五公里完成！"),
+                    new DemoZone(
+                            "travel-host",
+                            "城市漫游电台",
+                            "旅行",
+                            "#D9CFB8",
+                            Set.of("舒缓"),
+                            "把路上的风景分享给你"),
+                    new DemoZone(
+                            "night-host",
+                            "下班后的客厅",
+                            "深夜",
+                            "#C3B8D9",
+                            Set.of("流行", "说唱"),
+                            "今天辛苦了，坐下来听一会儿"));
+
+    private final UserRepository users;
+    private final TrackRepository tracks;
+    private final ZoneRepository zones;
+    private final ZoneMemberRepository members;
+    private final QueueItemRepository queue;
+    private final MomentRepository moments;
+    private final Clock clock;
+    private final MusicProperties musicProperties;
+    private final TrackDurationPolicy durations;
 
     @Override
     @Transactional
     public void run(String... args) {
-        if (userRepository.count() > 0) return;
+        Map<String, User> cast = new LinkedHashMap<>();
+        for (DemoUser spec : USERS) cast.put(spec.key(), upsertUser(spec));
 
-        // ---------- 用户 ----------
-        User host1 = user("白桃乌龙");
-        User host2 = user("配速430");
-        User host3 = user("京都慢一点");
-        User demo = user("octave"); // Demo 当前用户
+        List<Track> localCatalog =
+                tracks.findTop50BySourceOrderByIdAsc("LOCAL_LICENSED").stream()
+                        .filter(t -> t.getExternalId() != null && !t.getTags().isEmpty())
+                        .filter(durations::isAllowed)
+                        .toList();
+        List<Track> audiusCatalog =
+                tracks.findTop50BySourceOrderByIdAsc("AUDIUS").stream()
+                        .filter(t -> t.getExternalId() != null && !t.getTags().isEmpty())
+                        .filter(durations::isAllowed)
+                        .toList();
+        List<Track> catalog;
+        if (localCatalog.size() >= 3) catalog = localCatalog;
+        else if (musicProperties.getAudius().isEnabled() && audiusCatalog.size() >= 3)
+            catalog = audiusCatalog;
+        else {
+            LinkedHashMap<Long, Track> combined = new LinkedHashMap<>();
+            localCatalog.forEach(t -> combined.put(t.getId(), t));
+            if (musicProperties.getAudius().isEnabled())
+                audiusCatalog.forEach(t -> combined.putIfAbsent(t.getId(), t));
+            catalog = combined.size() >= 3 ? new ArrayList<>(combined.values()) : fallbackCatalog();
+        }
 
-        // ---------- 曲目（标签覆盖五类：语言/年代/风格/场景/情绪，决议 D5）----------
-        Track lemon = track("Lemon", "米津玄師", "#A8B8C8", Set.of("日语", "10s", "流行", "舒缓"));
-        Track kiseki = track("キセキ", "GReeeeN", "#B5C4D4", Set.of("日语", "00s", "流行", "治愈"));
-        Track yoru = track("夜に駆ける", "YOASOBI", "#C3B8D9", Set.of("日语", "20s", "流行", "抖音热曲"));
-        Track river = track("River Flows in You", "Yiruma", "#C9D4C5", Set.of("纯音乐", "00s", "古典", "舒缓", "自习"));
-        Track midnightCity = track("Midnight City", "M83", "#D9C3B8", Set.of("英语", "10s", "电子", "亢奋", "健身"));
-        Track blinding = track("Blinding Lights", "The Weeknd", "#E3C9D4", Set.of("英语", "20s", "电子", "流行", "健身"));
-        Track plasticLove = track("Plastic Love", "竹内まりや", "#B8CDD9", Set.of("日语", "80s", "City Pop", "旅行"));
-        Track stayWithMe = track("真夜中のドア", "松原みき", "#D9CFB8", Set.of("日语", "70s", "City Pop", "深夜"));
-
-        // ---------- 域 1：考研自习室（公开 + BAN 黑名单 + 番茄钟，完整机制演示）----------
-        Zone study = zone("考研自习室", "自习", host1, "#A8B8C8", 87,
-                ZoneVisibility.PUBLIC, FilterMode.BAN,
-                Set.of("舒缓", "专注"), Set.of("抖音热曲", "亢奋"));
-        period(study, 0, 40, PeriodType.FOCUS, Set.of("舒缓", "专注", "纯音乐"));
-        period(study, 1, 15, PeriodType.BREAK, Set.of("流行", "舒缓"));
-        member(study, host1);
-        member(study, demo);
-        QueueItem playing1 = queueItem(study, lemon, demo, QueueStatus.PLAYING, 0);
-        playing1.setStartedAt(LocalDateTime.now().minusMinutes(3));
-        queueItemRepository.save(playing1);
-        queueItem(study, kiseki, host1, QueueStatus.QUEUED, 24);
-        queueItem(study, yoru, demo, QueueStatus.QUEUED, 19);
-        queueItem(study, river, host1, QueueStatus.QUEUED, 15);
-        // 图片分享：demo 绑定自己上传的 Lemon（决议 D6 绑定规则）
-        moment(study, demo, null, "#B5C4D4", lemon, LocalDateTime.now().minusMinutes(12));
-        moment(study, host1, "今天也是满座", "#C9D4C5", kiseki, LocalDateTime.now().minusMinutes(5));
-
-        // ---------- 域 2：夜跑俱乐部（公开 + ALLOW 白名单模式演示）----------
-        Zone run = zone("夜跑俱乐部", "健身", host2, "#D9C3B8", 45,
-                ZoneVisibility.PUBLIC, FilterMode.ALLOW,
-                Set.of("电子", "亢奋"), Set.of("电子", "亢奋", "健身"));
-        member(run, host2);
-        QueueItem playing2 = queueItem(run, midnightCity, host2, QueueStatus.PLAYING, 0);
-        playing2.setStartedAt(LocalDateTime.now().minusMinutes(1));
-        queueItemRepository.save(playing2);
-        queueItem(run, blinding, host2, QueueStatus.QUEUED, 21);
-        moment(run, host2, "珠江边 5km 打卡", "#D9C3B8", midnightCity, LocalDateTime.now().minusMinutes(8));
-
-        // ---------- 域 3：京都深夜（私密域：密码 0707 + 邀请码 kyoto88）----------
-        Zone trip = zone("京都深夜", "旅行", host3, "#B8CDD9", 12,
-                ZoneVisibility.PRIVATE, FilterMode.BAN,
-                Set.of("City Pop", "日语"), Set.of("抖音热曲"));
-        trip.setPassword("0707");
-        trip.setInviteCode("kyoto88");
-        zoneRepository.save(trip);
-        member(trip, host3);
-        QueueItem playing3 = queueItem(trip, plasticLove, host3, QueueStatus.PLAYING, 0);
-        playing3.setStartedAt(LocalDateTime.now().minusMinutes(2));
-        queueItemRepository.save(playing3);
-        queueItem(trip, stayWithMe, host3, QueueStatus.QUEUED, 28);
-        moment(trip, host3, "鸭川的黄昏", "#B8CDD9", plasticLove, LocalDateTime.now().minusMinutes(3));
+        List<User> listeners = new ArrayList<>(cast.values());
+        for (int i = 0; i < ZONES.size(); i++) {
+            DemoZone spec = ZONES.get(i);
+            User host = cast.get(spec.hostKey());
+            List<Track> playlist = playlist(catalog, spec.preferredTags(), i * 2);
+            Zone zone = upsertZone(spec, host, playlist);
+            ensureMembers(zone, host, listeners, i);
+            ensurePlaylist(zone, host, playlist);
+            ensureMoment(zone, host, playlist.get(0), spec.momentText(), i);
+        }
     }
 
-    // ---------- 构造辅助 ----------
-
-    private User user(String name) {
-        User u = new User();
-        u.setName(name);
-        return userRepository.save(u);
+    private User upsertUser(DemoUser spec) {
+        String subject = "demo:" + spec.key();
+        User user =
+                users.findByHostSubject(subject)
+                        .orElseGet(
+                                () ->
+                                        users.findByName(spec.name())
+                                                .filter(u -> u.getHostSubject() == null)
+                                                .orElseGet(User::new));
+        user.setName(spec.name());
+        user.setHostSubject(subject);
+        user.setAvatarColor(spec.color());
+        return users.save(user);
     }
 
-    private Track track(String title, String artist, String color, Set<String> tags) {
-        Track t = new Track();
-        t.setTitle(title);
-        t.setArtist(artist);
-        t.setCoverColor(color);
-        // 【关键】@ElementCollection 字段必须用可变集合，Set.of 返回不可变集合会导致 Hibernate merge 时 UnsupportedOperationException
-        t.getTags().addAll(tags);
-        return trackRepository.save(t);
+    private Zone upsertZone(DemoZone spec, User host, List<Track> playlist) {
+        Zone zone =
+                zones.findFirstByHostIdAndDemoResidentTrue(host.getId()).orElseGet(Zone::new);
+        zone.setName(spec.name());
+        zone.setScene(spec.scene());
+        zone.setHost(host);
+        zone.setCoverColor(spec.color());
+        zone.setVisibility(ZoneVisibility.PUBLIC);
+        zone.setFilterMode(FilterMode.ALLOW);
+        zone.setDemoResident(true);
+        zone.setStatus(ZoneStatus.ACTIVE);
+        zone.setEndedAt(null);
+        zone.setLastActivityAt(LocalDateTime.now(clock));
+        Set<String> allowed = new LinkedHashSet<>(spec.preferredTags());
+        for (Track track : playlist) allowed.addAll(track.getTags());
+        zone.getFilterTags().clear();
+        zone.getFilterTags().addAll(allowed);
+        zone.getTags().clear();
+        zone.getTags().addAll(allowed);
+        return zones.save(zone);
     }
 
-    private Zone zone(String name, String scene, User host, String color, int listeners,
-                      ZoneVisibility visibility, FilterMode filterMode,
-                      Set<String> tags, Set<String> filterTags) {
-        Zone z = new Zone();
-        z.setName(name);
-        z.setScene(scene);
-        z.setHost(host);
-        z.setCoverColor(color);
-        z.setListenerCount(listeners);
-        z.setVisibility(visibility);
-        z.setFilterMode(filterMode);
-        z.getTags().addAll(tags);
-        z.getFilterTags().addAll(filterTags);
-        z.setStatus(ZoneStatus.ACTIVE);
-        return zoneRepository.save(z);
+    private void ensureMembers(Zone zone, User host, List<User> cast, int offset) {
+        LinkedHashSet<User> selected = new LinkedHashSet<>();
+        selected.add(host);
+        for (int i = 0; i < 4 + offset; i++) selected.add(cast.get((i + offset) % cast.size()));
+        LocalDateTime now = LocalDateTime.now(clock);
+        for (User user : selected) {
+            ZoneMember member =
+                    members.findByZoneIdAndUserId(zone.getId(), user.getId())
+                            .orElseGet(ZoneMember::new);
+            member.setZone(zone);
+            member.setUser(user);
+            member.setLastSeenAt(now);
+            members.save(member);
+        }
+        zone.setListenerCount((int) members.countByZoneId(zone.getId()));
     }
 
-    private void period(Zone zone, int order, int duration, PeriodType type, Set<String> allowed) {
-        ZonePeriod p = new ZonePeriod();
-        p.setZone(zone);
-        p.setOrderIndex(order);
-        p.setDurationMin(duration);
-        p.setType(type);
-        p.getAllowedTags().addAll(allowed);
-        periodRepository.save(p);
+    private void ensurePlaylist(Zone zone, User host, List<Track> playlist) {
+        Set<Long> selectedIds = playlist.stream().map(Track::getId).collect(java.util.stream.Collectors.toSet());
+        for (QueueItem old :
+                queue.findByZoneIdAndRequesterIdOrderByCreatedAtAscIdAsc(
+                        zone.getId(), host.getId())) {
+            if (!selectedIds.contains(old.getTrack().getId())) old.setStatus(QueueStatus.REMOVED);
+            else if (old.getStatus() == QueueStatus.REMOVED) old.setStatus(QueueStatus.QUEUED);
+        }
+        for (Track track : playlist) {
+            if (queue.existsByZoneIdAndTrackIdAndRequesterId(
+                    zone.getId(), track.getId(), host.getId())) continue;
+            QueueItem item = new QueueItem();
+            item.setZone(zone);
+            item.setTrack(track);
+            item.setRequester(host);
+            item.setStatus(QueueStatus.QUEUED);
+            queue.save(item);
+        }
+        if (queue.findFirstByZoneIdAndStatus(zone.getId(), QueueStatus.PLAYING).isEmpty()) {
+            List<QueueItem> waiting =
+                    queue.findByZoneIdAndStatusOrderByCreatedAtAscIdAsc(
+                            zone.getId(), QueueStatus.QUEUED);
+            if (waiting.isEmpty()) {
+                waiting =
+                        queue.findByZoneIdAndStatusOrderByCreatedAtAscIdAsc(
+                                zone.getId(), QueueStatus.PLAYED);
+                for (QueueItem item : waiting) {
+                    item.setStatus(QueueStatus.QUEUED);
+                    item.setStartedAt(null);
+                    item.setPlayedAt(null);
+                }
+                queue.saveAllAndFlush(waiting);
+            }
+            if (!waiting.isEmpty()) {
+                QueueItem first = waiting.get(0);
+                first.setStatus(QueueStatus.PLAYING);
+                first.setStartedAt(LocalDateTime.now(clock).minusSeconds(15));
+                queue.save(first);
+            }
+        }
     }
 
-    private void member(Zone zone, User user) {
-        ZoneMember m = new ZoneMember();
-        m.setZone(zone);
-        m.setUser(user);
-        memberRepository.save(m);
+    private void ensureMoment(
+            Zone zone, User host, Track track, String text, int minuteOffset) {
+        Moment moment =
+                moments.findFirstByZoneIdAndText(zone.getId(), text).orElseGet(Moment::new);
+        moment.setZone(zone);
+        moment.setUser(host);
+        moment.setTrack(track);
+        moment.setText(text);
+        moment.setColor(zone.getCoverColor());
+        if (moment.getId() == null)
+            moment.setCreatedAt(LocalDateTime.now(clock).minusMinutes(3L + minuteOffset));
+        moment.setModerationStatus(ModerationStatus.APPROVED);
+        moments.save(moment);
     }
 
-    private QueueItem queueItem(Zone zone, Track track, User requester, QueueStatus status, int likes) {
-        QueueItem q = new QueueItem();
-        q.setZone(zone);
-        q.setTrack(track);
-        q.setRequester(requester);
-        q.setStatus(status);
-        q.setLikes(likes);
-        return queueItemRepository.save(q);
+    private List<Track> playlist(List<Track> catalog, Set<String> preferred, int offset) {
+        List<Track> matches =
+                catalog.stream()
+                        .filter(t -> t.getTags().stream().anyMatch(preferred::contains))
+                        .toList();
+        List<Track> source = matches.size() >= 3 ? matches : catalog;
+        List<Track> selected = new ArrayList<>();
+        for (int i = 0; i < Math.min(4, source.size()); i++)
+            selected.add(source.get((offset + i) % source.size()));
+        return selected;
     }
 
-    private void moment(Zone zone, User user, String text, String color, Track track, LocalDateTime createdAt) {
-        Moment m = new Moment();
-        m.setZone(zone);
-        m.setUser(user);
-        m.setText(text);
-        m.setColor(color);
-        m.setTrack(track);
-        m.setCreatedAt(createdAt);
-        momentRepository.save(m);
+    private List<Track> fallbackCatalog() {
+        return List.of(
+                fallback("calm-sky", "Calm Sky", "SoundZone Demo", Set.of("舒缓", "电子")),
+                fallback("soft-focus", "Soft Focus", "SoundZone Demo", Set.of("舒缓", "专注")),
+                fallback("night-run", "Night Run", "SoundZone Demo", Set.of("亢奋", "电子")),
+                fallback("city-lights", "City Lights", "SoundZone Demo", Set.of("流行", "电子")),
+                fallback("slow-trip", "Slow Trip", "SoundZone Demo", Set.of("旅行", "舒缓")),
+                fallback("after-work", "After Work", "SoundZone Demo", Set.of("说唱", "流行")));
     }
+
+    private Track fallback(String key, String title, String artist, Set<String> tags) {
+        Track track =
+                tracks.findFirstBySourceAndExternalId("MOCK", "demo:" + key)
+                        .orElseGet(Track::new);
+        track.setTitle(title);
+        track.setArtist(artist);
+        track.setSource("MOCK");
+        track.setExternalId("demo:" + key);
+        track.setAttribution("SoundZone 演示元数据");
+        track.setDurationSec(210);
+        track.getTags().clear();
+        track.getTags().addAll(tags);
+        return tracks.save(track);
+    }
+
+    private record DemoUser(String key, String name, String color) {}
+
+    private record DemoZone(
+            String hostKey,
+            String name,
+            String scene,
+            String color,
+            Set<String> preferredTags,
+            String momentText) {}
 }

@@ -1,36 +1,42 @@
 <template>
-  <!-- 上传图片弹窗（v2 决议 D9）：半屏玻璃弹窗，选图绑定当前歌曲，跳过/上传 -->
+  <!-- 上传图片弹窗（v2 决议 D9）：半屏玻璃弹窗，选图绑定本次上传歌曲，跳过/上传 -->
   <view v-if="visible" class="popup-mask" @click="$emit('close')">
     <view class="popup-sheet sz-glass" @click.stop>
       <view class="popup-sheet__handle" />
       <view class="popup-sheet__header">
-        <text class="popup-sheet__title">上传图片</text>
+        <text class="popup-sheet__title">Upload a Photo</text>
         <text class="popup-sheet__close" @click="$emit('close')">✕</text>
       </view>
 
-      <!-- 图片选择区 -->
+      <text class="popup-sheet__subtitle">This will be bound to your uploaded track</text>
       <view class="picker" @click="chooseImage">
-        <image v-if="imageUrl" class="picker__preview" :src="imageUrl" mode="aspectFill" />
+        <view v-if="imageUrl" class="picker__polaroid">
+          <image class="picker__preview" :src="imageUrl" mode="aspectFill" />
+          <text>{{ bindTrack }} · just now</text>
+        </view>
         <view v-else class="picker__placeholder">
           <text class="picker__plus">＋</text>
-          <text class="picker__hint">选择一张图片，分享当下日常</text>
+          <text class="picker__hint">Choose a photo</text>
         </view>
       </view>
 
-      <!-- 绑定信息：图片与当前歌曲关联（决议 D6） -->
+      <!-- 绑定信息：图片与本次上传歌曲关联（决议 D6） -->
       <view v-if="bindTrack" class="bind-row">
-        <text class="bind-row__label">将绑定歌曲</text>
+        <text class="bind-row__label">Bound to</text>
         <text class="bind-row__track">♪ {{ bindTrack }}</text>
       </view>
 
+      <label class="consent"><checkbox :checked="trainingConsent" @click="trainingConsent = !trainingConsent" color="#8c9bab" />Use photo to improve recommendations (optional)</label>
+      <text class="consent-note">Shared right away. You can withdraw it later.</text>
       <!-- 双按钮：跳过图片 / 上传图片（决议 D9） -->
       <view class="actions">
-        <button class="actions__btn actions__btn--ghost" @click="onSkip">跳过图片</button>
+        <button class="actions__btn actions__btn--ghost" @click="onSkip">Skip</button>
         <button
           class="actions__btn actions__btn--primary"
-          :class="{ 'actions__btn--disabled': !imageUrl }"
+          :class="{ 'actions__btn--disabled': !imageUrl || uploading }"
+          :disabled="!imageUrl || uploading"
           @click="onUpload"
-        >上传图片</button>
+        >Share Moment</button>
       </view>
     </view>
   </view>
@@ -52,13 +58,16 @@ const props = defineProps({
   visible: { type: Boolean, default: false },
   bindTrack: { type: String, default: '' },
   zoneId: { type: Number, required: true },
+  queueItemId: { type: Number, default: null },
 })
 const emit = defineEmits(['close', 'uploaded', 'toast'])
 
 const imageUrl = ref('')
+const trainingConsent = ref(false)
+const uploading = ref(false)
 
 watch(() => props.visible, (v) => {
-  if (v) imageUrl.value = ''
+  if (v) { imageUrl.value = ''; trainingConsent.value = false }
 })
 
 function chooseImage() {
@@ -72,18 +81,20 @@ function chooseImage() {
 }
 
 async function onUpload() {
-  if (!imageUrl.value) return
+  if (!imageUrl.value || !props.queueItemId || uploading.value) return
+  uploading.value = true
   try {
     const moment = await uploadImage(props.zoneId, {
-      imageUrl: imageUrl.value,
-      trackTitle: props.bindTrack,
+      filePath: imageUrl.value,
+      queueItemId: props.queueItemId,
+      trainingConsent: trainingConsent.value,
     })
     emit('uploaded', moment)
-    emit('toast', '已分享到动态区')
+    emit('toast', 'Shared to Moments')
     emit('close')
   } catch (e) {
-    emit('toast', e.message || '上传失败')
-  }
+    emit('toast', e.message || 'Upload failed')
+  } finally { uploading.value = false }
 }
 
 function onSkip() {
@@ -93,10 +104,12 @@ function onSkip() {
 </script>
 
 <style lang="scss" scoped>
+.consent, .consent-note { display: block; font-size: 20rpx; color: $sz-text-secondary; padding: 8rpx 0; }
 .popup-mask {
   position: fixed;
   inset: 0;
-  background-color: rgba(0, 0, 0, 0.25);
+  background-color: rgba(0, 0, 0, 0.30);
+  backdrop-filter: blur(6px);
   display: flex;
   align-items: flex-end;
   z-index: 100;
@@ -104,27 +117,28 @@ function onSkip() {
 
 .popup-sheet {
   width: 100%;
-  border-radius: $sz-radius-lg $sz-radius-lg 0 0;
-  padding: $sz-gap-md $sz-gap-md calc(#{$sz-gap-md} + env(safe-area-inset-bottom));
+  border-radius: 48rpx 48rpx 0 0;
+  padding: 34rpx 40rpx calc(50rpx + env(safe-area-inset-bottom));
+  background: rgba(255,255,255,.72);
 
   &__handle {
-    width: 72rpx;
+    width: 80rpx;
     height: 8rpx;
     border-radius: 999rpx;
     background-color: rgba(0, 0, 0, 0.12);
-    margin: 0 auto $sz-gap-sm;
+    margin: 0 auto 28rpx;
   }
 
   &__header {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: $sz-gap-md;
+    margin-bottom: 2rpx;
   }
 
   &__title {
-    font-size: $sz-font-lg;
-    font-weight: 500;
+    font-size: 32rpx;
+    font-weight: 600;
   }
 
   &__close {
@@ -132,18 +146,31 @@ function onSkip() {
     font-size: $sz-font-base;
     padding: 8rpx;
   }
+  &__subtitle { color: $sz-text-tertiary; font-size: 22rpx; display: block; margin-bottom: 24rpx; }
 }
 
 .picker {
   width: 100%;
-  height: 360rpx;
-  border-radius: $sz-radius-md;
-  overflow: hidden;
-  background-color: rgba(255, 255, 255, 0.5);
+  height: 330rpx;
+  border-radius: 22rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: rgba(0,0,0,.045);
 
   &__preview {
     width: 100%;
-    height: 100%;
+    height: 230rpx;
+    border-radius: 10rpx;
+  }
+  &__polaroid {
+    width: 260rpx;
+    padding: 12rpx 12rpx 25rpx;
+    border-radius: 16rpx;
+    background: #fff;
+    box-shadow: $sz-shadow-soft;
+    transform: rotate(-1.5deg);
+    text { display: block; text-align: center; color: $sz-text-tertiary; font-size: 17rpx; font-style: italic; margin-top: 10rpx; }
   }
 
   &__placeholder {
@@ -163,7 +190,7 @@ function onSkip() {
   }
 
   &__hint {
-    font-size: $sz-font-sm;
+    font-size: 23rpx;
     color: $sz-text-tertiary;
   }
 }
@@ -172,7 +199,7 @@ function onSkip() {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: $sz-gap-sm 4rpx;
+  padding: 18rpx 4rpx;
 
   &__label {
     font-size: $sz-font-sm;
@@ -187,12 +214,12 @@ function onSkip() {
 
 .actions {
   display: flex;
-  gap: $sz-gap-md;
-  margin-top: $sz-gap-sm;
+  gap: 20rpx;
+  margin-top: 24rpx;
 
   &__btn {
     flex: 1;
-    font-size: $sz-font-base;
+    font-size: 25rpx;
     border-radius: 999rpx;
 
     &::after {

@@ -1,147 +1,101 @@
-# 同频 SoundZone · 后端服务（server/）
+# 同频 SoundZone · 后端
 
-基于 **Spring Boot 3.3 + Java 17 + Spring Data JPA** 的后端 Demo，功能模块与 `../docs/01~04` 一一对应。
+固定使用 Spring Boot 3.3、Java 17、Spring Data JPA、MySQL 8，保留按模块组织的 entity / repository / service / controller / dto 分层。
 
-> **v2 变更（2026-09-24 第二次会议）**：队列改 FIFO（得分公式废除）、新增上传冷却（10 分钟）、标签过滤双模式（BAN/ALLOW）、公开/私密域（密码/邀请码 + 成员制 + 全员退出自动消失）、图片分享绑定上传歌曲（+撤回+半小时图片流）、关注体系、emoji 轻互动、歌品值移除（去游戏化，**域后战报保留**）。
+## 启动
 
-> **技术栈说明（假设标注）**：docs/05 原定后端为 FastAPI（Python），应开发要求改用 Spring Boot 实现。功能模块、接口语义与文档保持一致；docs/05 的技术选型一节待同步修订。
+需要 JDK 17、Maven 和 MySQL 8。项目根目录的 `docker compose up -d` 可启动本地数据库。
 
-> **数据源（2026-09-24 变更）**：由 H2 内存库切换为 **MySQL 8（Docker）**。表结构由 JPA 自动生成，完整 DDL 见 `sql/schema.sql`。
+**先处理表结构**：全新数据库执行 `sql/schema.sql`；已有数据库先备份，再按 [迁移说明](sql/migrations/README.md) 执行增量 SQL。默认 `ddl-auto=validate`，应用不会自动建表或修改业务库。
 
-## 快速开始
-
-需要 **JDK 17+**、**Maven 3.8+** 与 **Docker**（用于 MySQL 8）。
-
-**第 1 步：启动 MySQL（项目根目录）**
+在 `server/` 内执行：
 
 ```bash
-cd ..                      # 回到 sound-zone/ 根目录
-docker compose up -d       # 启动 MySQL 8 容器（端口 3306，数据卷持久化）
-docker compose ps          # 确认 mysql 容器 healthy
+# 独立 Demo 默认允许游客，并幂等初始化常驻演示用户与域
+mvn spring-boot:run
+# 构建
+mvn clean package
+# 独立 H2 测试库执行行为测试
+mvn test
 ```
 
-**第 2 步：启动后端**
+接口前缀 `http://localhost:8080/api`。Audius 默认开启，搜索空关键词返回热门歌曲，关键词搜索返回相关歌曲；外部服务不可用时回退到已落库曲目。历史示例曲目只是元数据，无真实音源。演示成员也遵循心跳超时规则，不会永久保持在线。
 
-```bash
-cd server
-mvn spring-boot:run        # 首次启动自动建表 + 注入种子数据
-mvn clean package          # 打包 target/sound-zone-server-0.1.0.jar
-```
+游客入口由 `SOUNDZONE_GUEST_ENABLED` 控制，默认开启。公开部署可关闭游客并接入自己的账号体系；`HostIdentityProvider` 仅作为未来宿主合作的可选适配。数据源通过 `SPRING_DATASOURCE_URL / USERNAME / PASSWORD` 覆盖；沿用本地 Docker 配置只是开发默认值。
 
-- 接口前缀：`http://localhost:8080/api`
-- 首次启动自动建表（`ddl-auto=update`）并注入演示数据（3 个域 + 曲目 + 队列 + 图片分享 + 番茄钟）
+## 配置与模块
 
-## MySQL 数据库（Docker + Sequel Ace）
-
-### 容器配置
-
-见项目根目录 `../docker-compose.yml`：`mysql:8.0`、端口 `3306:3306`、utf8mb4 字符集、命名卷 `mysql_data` 持久化、健康检查。
-
-### Sequel Ace 连接信息
-
-| 项 | 值 |
+| 配置 | 用途 |
 |---|---|
-| 主机 Host | `127.0.0.1` |
-| 端口 Port | `3306` |
-| 用户名 User | `soundzone`（业务账号）或 `root`（管理员） |
-| 密码 Password | `soundzone123`（业务）或 `root123456`（root） |
-| 数据库 Database | `soundzone` |
+| `SOUNDZONE_IMAGE_DIRECTORY` | 持久图片目录，默认相对工作目录的 `./data/images` |
+| `SOUNDZONE_AUDIO_DIRECTORY` | 自有演示音频目录，默认相对工作目录的 `./data/audio` |
+| `SOUNDZONE_ADMIN_KEY` | 指标与授权导出的运营凭证；为空时关闭 |
+| `SOUNDZONE_ALLOWED_ORIGINS` | HTTP / WebSocket 允许的来源；默认仅 localhost 与 127.0.0.1 |
+| `SOUNDZONE_GUEST_ENABLED` | 独立游客入口，默认 `true` |
+| `SOUNDZONE_DEMO_DATA_ENABLED` | 常驻演示数据，默认 `true`；正式环境可设为 `false` |
+| `SOUNDZONE_MAX_TRACK_DURATION_SECONDS` | 单曲最长时长，默认 `600` 秒；搜索、建域、点歌和播放均校验 |
+| `SOUNDZONE_AUDIUS_ENABLED` | Audius 曲库开关，默认 `true` |
+| `SOUNDZONE_AUDIUS_API_KEY` | Audius 开发者 API Key；未配置时只读请求使用 `app_name` |
+| `SOUNDZONE_AUDIUS_BEARER_TOKEN` | 仅服务端搜索请求可用的 Bearer Token；不要交给前端 |
+| `soundzone.music.streams` | 曲目 ID 到已获授权 HTTPS 音源的映射 |
+| `soundzone.music.local-catalog` | 带授权引用的本地小曲库配置 |
+| `soundzone.active-window-minutes` | 首页近期活跃窗口，默认 30 分钟 |
+| `soundzone.presence-grace-seconds` | 成员失联宽限，默认 90 秒 |
 
-> Sequel Ace 里选 **Socket/Standard 均可**，用 Standard TCP 填上表即可。表结构见 `sql/schema.sql`（也可在 Sequel Ace 里查看 JPA 自动建出的 12 张表）。
+`auth` 处理会话与准入；`zone / queue` 处理 FIFO、成员与服务端播放时钟；`realtime` 处理事务提交后推送；`moment` 处理文件校验、即时分享与授权；`feedback / user` 处理幂等互动和个人内容；`activity` 汇总最小必要业务事件。演示初始化器使用 `demo:*` 稳定身份写入 8 个用户和 4 个公开域，重复启动不会重复插入；只对带 `demo_resident` 标记的域保持在线并循环歌单。
 
-### 数据迁移说明
+详细规则、完整 API 要点、指标口径与曲库接入边界见 [实施说明](../docs/06-implementation.md)。普通接口身份来自 Bearer 会话，不信任 body/query 中的 userId。图片读取同样检查身份与成员资格。
 
-原有数据在 H2 **内存库**中（每次重启即清空，无持久化历史数据），种子数据写在 `DataInitializer.java` 里。因此切换 MySQL **无需手动搬数据**：
+### 授权小曲库示例
 
-1. 首次启动后端 → JPA 自动建表（等价于 `schema.sql`）→ `DataInitializer` 自动注入种子数据
-2. 之后的数据全部落盘到 MySQL 数据卷，**重启不再丢失**
+音频可使用已获在线播放许可的 HTTPS 地址，也可导入你自己有权使用的文件；两种方式都必须填写授权引用，且默认不得超过 10 分钟。缺少 `license-reference`、时长超限、使用未知标签、同时配置两种音源或本地文件不存在时，应用会拒绝启动。
 
-> 若要清空重来：`docker compose down -v` 删除数据卷，再 `up -d` 重建。
-
-## 项目结构
-
-```
-server/
-├── pom.xml                         # 依赖：web / validation / data-jpa / mysql-connector-j / lombok
-├── sql/schema.sql                  # 数据库表结构 DDL（12 张表，供 Sequel Ace 参考）
-└── src/main/
-    ├── resources/application.yml   # 端口/MySQL 数据源/JPA 配置
-    └── java/com/soundzone/
-        ├── SoundZoneApplication.java
-        ├── common/                 # 统一响应 Result、错误码 ResultCode、
-        │                           #   业务异常 BizException、全局异常处理
-        ├── config/                 # CorsConfig（前端联调）、DataInitializer（种子数据）
-        ├── user/                   # 用户：entity / repository / service / controller / dto
-        ├── track/                  # 曲目（含五类标签）
-        ├── zone/                   # 域 + 番茄钟时段（ZonePeriod）+ 域成员（ZoneMember）
-        ├── queue/                  # 上传队列（FIFO + 冷却）
-        ├── moment/                 # 图片分享（三元组数据）
-        └── feedback/               # 收藏/点赞/emoji + 战报（审美反馈）
-```
-
-## 数据库表结构
-
-共 12 张表（9 个实体 + 4 张 `@ElementCollection` 关联表），完整 DDL 见 `sql/schema.sql`（JPA 首次启动自动生成）。
-
-| 表 | 说明 | 关键字段 |
-|---|---|---|
-| `sz_user` | 用户 | name, avatar_color |
-| `sz_track` + `sz_track_tags` | 曲目 + 五类标签集合 | title, artist, source, tags |
-| `sz_zone` + `sz_zone_tags` + `sz_zone_filter_tags` | 域 + 风格标签 + 过滤标签（黑/白名单） | name, scene, host_id, visibility, filter_mode, listener_count |
-| `sz_zone_period` + `sz_zone_period_tags` | 番茄钟时段 + 白名单 | order_index, duration_min, type, allowed_tags |
-| `sz_zone_member` | 域成员（同频人数 + 全员退出自动消失） | zone_id, user_id |
-| `sz_queue_item` | 上传队列（FIFO） | track_id, user_id, likes, status |
-| `sz_moment` | 图片分享（三元组） | text, image_url, track_id, status |
-| `sz_feedback_event` | 反馈事件（收藏/点赞/emoji） | from_user_id, to_user_id, type |
-| `sz_follow` | 关注关系 | follower_id, followee_id |
-
-## 接口清单（统一响应 `{code, msg, data}`，code=0 成功）
-
-| 方法 | 路径 | 说明 | 对应文档机制 |
-|---|---|---|---|
-| GET | `/zones/active?scene=` | 活跃公开域列表（私密域不分发） | docs/02 第 2 步 + D2 |
-| POST | `/zones` | 创建域（≥3 首 + 公开/私密 + 过滤双模式 + 番茄钟） | docs/02 第 1 步 + D2/D5 |
-| POST | `/zones/{id}/join` | 进入域（私密域密码/邀请码鉴权） | D2 |
-| POST | `/zones/{id}/leave` | 退出域（全员退出自动消失） | D2 |
-| GET | `/zones/{id}` | 域详情（播放中 + FIFO 队列 + 动态区 1-2 张） | docs/01 三件套 |
-| POST | `/zones/{id}/end` | 结束域 | docs/02 第 5 步 |
-| POST | `/zones/{zoneId}/queue` | 上传歌曲（冷却→过滤→时段→FIFO 队尾） | D3/D4/D5 |
-| GET | `/zones/{zoneId}/cooldown?userId=` | 上传冷却剩余秒数 | D4 |
-| POST | `/queue/{itemId}/like` | 点赞（仅信号，不影响顺序） | D3/D7 |
-| POST | `/zones/{zoneId}/moments` | 发图片分享（绑定上传歌曲/当前播放） | D6 |
-| GET | `/zones/{zoneId}/moments/feed` | 半小时图片流（动态详情页） | D6 |
-| DELETE | `/moments/{momentId}?userId=` | 撤回图片（仅本人） | D6 |
-| POST | `/zones/{zoneId}/heart` | 互动反馈（COLLECT/LIKE/EMOJI_*，收藏触发微光） | D7 |
-| GET | `/zones/{zoneId}/report` | 域后个人战报（保留） | 用户确认保留 |
-| POST/DELETE | `/users/{userId}/follow?fromUserId=` | 关注 / 取关 | D7 |
-| GET | `/users/{userId}/following` | 我的关注列表 | D7 |
-| GET | `/tracks/search?keyword=` | 上传搜曲 | — |
-| GET | `/users/{userId}/profile` | 我的页（上传/获赞/分享/关注，无歌品值） | D7 |
-
-### 上传准入流程（v2）
-
-```
-上传 → ① 冷却检查（10 分钟内已传 → 3005 拒绝，返回剩余秒数）
-     → ② 域级标签过滤（BAN 命中 → 3002 / ALLOW 不含 → 3009）
-     → ③ 番茄钟时段白名单（不符合 → 入 PRESET 预存队列）
-     → ④ 入队尾（FIFO = createdAt 升序，无排序模型）
+```yaml
+soundzone:
+  music:
+    local-catalog:
+      - key: indie-demo-001
+        title: 示例曲目
+        artist: 独立音乐人
+        stream-url: https://media.example.com/indie-demo-001.mp3
+        cover-url: https://media.example.com/indie-demo-001.jpg
+        duration-sec: 218
+        tags: ["英语", "电子", "舒缓"]
+        attribution: 独立音乐人 · 经授权用于 SoundZone Demo
+        license-reference: contract:SZ-DEMO-2026-001
 ```
 
-## 假设标注（文档未明确处的决策）
+本地文件方案不依赖 Audius。先把至少 3 首 MP3／M4A 文件复制到 `server/data/audio/`，再把曲目逐条配置为 `audio-file`；文件名只能位于该目录根级，支持 `mp3 / m4a / aac / ogg / wav`。例如：
 
-| # | 假设 | 说明 |
-|---|---|---|
-| 1 | 后端栈切换为 Spring Boot | docs/05 原定 FastAPI，按开发要求实现 |
-| 2 | Demo 数据库用 H2 内存库 | 生产切 PostgreSQL（application.yml 已附示例），实体无需改动 |
-| 3 | 听众数 listenerCount 为冗余字段 | 正式版由 WebSocket 在线连接实时统计（docs/05 接入层） |
-| 4 | 当前时段按"域创建至今分钟数 % 番茄钟周期"推算 | 正式版由服务端权威时钟统一推进并广播 |
-| 5 | 红心归属 = 当前播放条目的点歌人 | 非当前播放曲目反馈返回参数错误 |
-| 6 | 歌品值 = 获赞总数/点歌总数 × 100（上限 100） | docs/02 定义"被点赞率"，Demo 简化为聚合比例 |
-| 7 | 无登录体系，userId 显式传递 | 正式版从登录态解析 |
-| 8 | 场景归一化用静态别名映射表 | 正式版为文本聚类模型（docs/03） |
-| 9 | 服务层未拆接口/实现两个文件 | 单一 @Service 类满足分层；如需面向接口可再抽 |
-| 10 | 实时推送（WS）未实现 | 当前 REST 轮询语义；WS 接入层属 M1 后续迭代（docs/05） |
+```yaml
+soundzone:
+  music:
+    local-catalog:
+      - key: my-demo-001
+        title: 我的演示音乐
+        artist: 演示作者
+        audio-file: my-demo-001.mp3
+        duration-sec: 180
+        tags: ["纯音乐", "舒缓"]
+        attribution: 自有演示音频
+        license-reference: owner:self
+```
 
-## 联调前端
+登记后重启后端，曲目会幂等进入曲库，前端可像 Audius 曲目一样建域和点歌；登记达到 3 首后，常驻演示域会优先使用本地曲库。后端以同源静态媒体提供文件并支持浏览器 Range 请求；不要把无授权的商业歌曲放入公开部署。
 
-前端 `app/src/api/mock.js` 各函数与上述接口一一对应，把函数体换成 `uni.request({url: 'http://localhost:8080/api' + ...})` 即可完成联调。
+若启动提示 `Port 8080 was already in use`，先访问 `http://127.0.0.1:8080/api/actuator/health`：返回 `{"status":"UP"}` 说明后端已经运行，不要重复启动。若提示 `Communications link failure`，先在项目根目录执行 `docker compose up -d mysql` 并等待容器状态变为 healthy。
+
+## MySQL 验收
+
+同一组测试支持在已迁移的**独立** MySQL 库运行：
+
+```bash
+SOUNDZONE_TEST_DB_URL='jdbc:mysql://127.0.0.1:3306/soundzone_codex_test_local?serverTimezone=Asia/Shanghai' \
+SOUNDZONE_TEST_DB_DRIVER=com.mysql.cj.jdbc.Driver \
+SOUNDZONE_TEST_DB_USER=soundzone \
+SOUNDZONE_TEST_DB_PASSWORD='<测试库密码>' \
+SOUNDZONE_TEST_DDL=validate \
+SOUNDZONE_TEST_DIALECT=org.hibernate.dialect.MySQLDialect mvn test
+```
+
+测试会清理所连接库中的测试业务数据，只允许 URL 中带 `soundzone_test` 或 `soundzone_codex_test_` 的库。不要指向已有业务库。迁移保留历史字段和行，回滚优先回退应用，禁止用删表或清库替代迁移。

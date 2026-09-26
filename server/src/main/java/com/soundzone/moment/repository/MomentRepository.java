@@ -1,19 +1,27 @@
 package com.soundzone.moment.repository;
 
-import com.soundzone.moment.entity.Moment;
-import com.soundzone.moment.entity.MomentStatus;
+import com.soundzone.moment.entity.*;
+
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.time.LocalDateTime;
-import java.util.List;
+import java.util.*;
 
 public interface MomentRepository extends JpaRepository<Moment, Long> {
+    List<Moment> findByZoneIdAndStatusAndCreatedAtAfterOrderByCreatedAtDescIdDesc(
+            Long zoneId, MomentStatus status, LocalDateTime after);
 
-    /** 主界面动态区：最新 1-2 张（排除已撤回，决议 D6） */
-    List<Moment> findTop2ByZoneIdAndStatusOrderByCreatedAtDesc(Long zoneId, MomentStatus status);
+    List<Moment> findByZoneIdAndStatusOrderByCreatedAtDescIdDesc(
+            Long zoneId, MomentStatus status);
 
-    /** 动态详情页：半小时内图片流（时间倒序，决议 D6） */
-    List<Moment> findByZoneIdAndStatusAndCreatedAtAfterOrderByCreatedAtDesc(Long zoneId, MomentStatus status, LocalDateTime after);
+    Optional<Moment> findFirstByZoneIdAndText(Long zoneId, String text);
 
-    long countByUserId(Long userId);
+    boolean existsByQueueItemId(Long queueItemId);
+
+    long countByUserIdAndStatus(Long userId, MomentStatus status);
+
+    List<Moment> findByUserIdOrderByCreatedAtDesc(Long userId);
+
+    List<Moment> findByTrainingConsentTrueAndStatusAndModerationStatus(
+            MomentStatus status, ModerationStatus moderationStatus);
 }

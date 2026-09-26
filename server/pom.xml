@@ -38,6 +38,12 @@
             <artifactId>spring-boot-starter-web</artifactId>
         </dependency>
 
+        <!-- 沿用 Spring 官方实时模块，不引入额外框架 -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-websocket</artifactId>
+        </dependency>
+
         <!-- 参数校验：@NotBlank / @Size 等 -->
         <dependency>
             <groupId>org.springframework.boot</groupId>

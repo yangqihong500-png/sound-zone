@@ -1,144 +1,61 @@
-/**
- * api/mock.js —— 数据层（已切换到真实后端）
- *
- * 本文件对外暴露与后端 18 个接口一一对应的函数，页面/组件无需改动。
- * 底层走 api/request.js（uni.request + baseURL + 统一解包）。
- *
- * 说明：文件名保留 mock.js 是为了不破坏现有组件的 import 路径；
- * 若要切回本地演示数据，只需把各函数体替换为原来的本地实现。
- */
-import { get, post, del } from './request.js'
-import { CURRENT_USER_ID } from './constants.js'
+/** 保留既有 import 路径；所有业务请求均进入真实后端。 */
+import { get, post, put, del, apiError } from './request.js'
+import { API_BASE } from './constants.js'
+import { ensureSession, token } from './session.js'
 
-// ========== 场景与标签目录（建域页分组展示，静态数据） ==========
-// 场景值与后端种子数据 ZoneService.normalizeScene 归一化结果对齐（自习/健身/旅行/工作/深夜…）
-export const SCENES = ['全部', '音乐', '自习', '健身', '旅行', '日系', '电子', '工作', '深夜']
+export const SCENES = ['全部', '音乐', '自习', '健身', '旅行', '日系', '电子', '工作', '手工', '深夜']
+export const getTagCatalog = () => get('/tracks/tags', {}, { auth: false })
+export const getActiveZones = (keyword = '') => get('/zones/active', { keyword }, { auth: false })
+export const getZonesByScene = (scene, keyword = '') => get('/zones/active', { scene, keyword }, { auth: false })
+export const getZoneDetail = (id) => get(`/zones/${id}`)
+export const joinZone = (id, credentials = {}) => post(`/zones/${id}/join`, credentials)
+export const leaveZone = (id) => post(`/zones/${id}/leave`)
+export const heartbeat = (id, itemId, playing) => post(`/zones/${id}/heartbeat`, { itemId, playing })
+export const createZone = (req) => post('/zones', req)
+export const updateZone = (id, req) => put(`/zones/${id}`, req)
+export const getInvite = (id) => get(`/zones/${id}/invite`)
+export const reportZone = (id, reason) => post(`/zones/${id}/reports`, { reason })
+export const uploadSong = (zoneId, trackId) => post(`/zones/${zoneId}/queue`, { trackId })
+export const getCooldown = (zoneId) => get(`/zones/${zoneId}/cooldown`).then((d) => d.remainSeconds)
+export const likeQueueItem = (itemId, active) => put(`/queue/${itemId}/like`, { active })
+export const searchTracks = (keyword) => get('/tracks/search', { keyword: keyword || '' })
+export const getPlaybackSource = (zoneId, trackId) => get(`/tracks/${trackId}/playback`, { zoneId })
+export const getMomentFeed = (zoneId) => get(`/zones/${zoneId}/moments/feed`)
+export const withdrawMoment = (zoneId, momentId) => del(`/moments/${momentId}`)
+export const reactMoment = (id, type) => put(`/moments/${id}/reaction`, { type })
+export const collectTrack = (zoneId, itemId, active) => put(`/zones/${zoneId}/collection`, { itemId, active })
+export const removeCollection = (trackId) => del(`/users/me/collections/${trackId}`)
+export const getCurrentUser = () => get('/sessions/me')
+export const getUserProfile = (userId) => get(`/users/${userId}/profile`)
+export const followUser = (id) => post(`/users/${id}/follow`)
+export const unfollowUser = (id) => del(`/users/${id}/follow`)
+export const getMyList = (kind) => get(`/users/me/${kind}`)
 
-export const TAG_CATALOG = {
-  语言: ['华语', '粤语', '日语', '韩语', '英语', '纯音乐'],
-  年代: ['70s', '80s', '90s', '00s', '10s', '20s'],
-  风格: ['流行', '摇滚', '电子', '说唱', '民谣', '爵士', '古典', 'City Pop', 'Lo-Fi', '抖音热曲'],
-  场景: ['自习', '健身', '旅行', '通勤', '睡前', '工作', '手工'],
-  情绪: ['舒缓', '治愈', '亢奋', '忧郁', '情歌', '专注'],
-}
-
-// ========== 域 ==========
-
-/** 活跃公开域列表（首页/发现页）→ GET /zones/active */
-export function getActiveZones() {
-  return get('/zones/active')
-}
-
-/** 按场景筛选（scene 为空或「全部」则不筛选）→ GET /zones/active?scene= */
-export function getZonesByScene(scene) {
-  return get('/zones/active', { scene: scene === '全部' ? '' : scene })
-}
-
-/** 域详情（播放中 + FIFO 队列 + 动态区 1-2 张）→ GET /zones/{id} */
-export function getZoneDetail(id) {
-  return get(`/zones/${id}`)
-}
-
-/** 进入域（私密域需密码/邀请码）→ POST /zones/{id}/join */
-export function joinZone(id, { userId, password, inviteCode }) {
-  return post(`/zones/${id}/join`, { userId, password, inviteCode })
-}
-
-/** 退出域 → POST /zones/{id}/leave */
-export function leaveZone(id, userId) {
-  return post(`/zones/${id}/leave`, { userId })
-}
-
-/** 创建域 → POST /zones */
-export function createZone(req) {
-  return post('/zones', {
-    name: req.name,
-    scene: req.scene,
-    hostId: req.hostId || CURRENT_USER_ID, // Demo 当前用户（后端种子数据 octave = id 4）
-    trackIds: req.trackIds || [],
-    visibility: req.visibility,
-    password: req.password || null,
-    filterMode: req.filterMode,
-    filterTags: req.filterTags || [],
-    tags: req.tags || [],
-    coverColor: req.coverColor || null,
+export async function uploadImage(zoneId, { filePath, queueItemId, trainingConsent }) {
+  await ensureSession()
+  return new Promise((resolve, reject) => {
+    uni.uploadFile({
+      url: `${API_BASE}/zones/${zoneId}/moments`, filePath, name: 'file',
+      header: { Authorization: `Bearer ${token()}` },
+      formData: { queueItemId: String(queueItemId), trainingConsent: String(trainingConsent) },
+      success: (res) => {
+        try {
+          const body = JSON.parse(res.data)
+          body.code === 0 ? resolve(body.data) : reject(apiError(body))
+        } catch { reject(new Error('图片上传响应异常')) }
+      },
+      fail: () => reject(new Error('图片上传失败，请重试')),
+    })
   })
 }
-
-// ========== 上传与队列 ==========
-
-/** 上传歌曲 → POST /zones/{zoneId}/queue（冷却→过滤→FIFO） */
-export function uploadSong(zoneId, trackId) {
-  return post(`/zones/${zoneId}/queue`, { trackId, userId: CURRENT_USER_ID })
-}
-
-/** 上传冷却剩余秒数 → GET /zones/{zoneId}/cooldown */
-export function getCooldown(zoneId) {
-  return get(`/zones/${zoneId}/cooldown`, { userId: CURRENT_USER_ID }).then((d) => d.remainSeconds ?? 0)
-}
-
-/** 点赞队列条目 → POST /queue/{itemId}/like */
-export function likeQueueItem(itemId, userId) {
-  return post(`/queue/${itemId}/like`, { userId: userId || CURRENT_USER_ID })
-}
-
-/** 搜曲（上传歌曲弹窗）→ GET /tracks/search?keyword= */
-export function searchTracks(keyword) {
-  return get('/tracks/search', { keyword: keyword || '' })
-}
-
-// ========== 图片分享 ==========
-
-/** 发布图片分享（绑定歌曲）→ POST /zones/{zoneId}/moments */
-export function uploadImage(zoneId, { imageUrl, color, trackTitle, text }) {
-  return post(`/zones/${zoneId}/moments`, {
-    userId: CURRENT_USER_ID,
-    text: text || null,
-    imageUrl: imageUrl || null,
-    color: color || null,
-    // trackId 由后端回退当前播放；如需指定本人上传的歌曲，另传 trackId
+/** 私密图片带身份下载，不开放静态 URL；服务端撤回后禁止再次读取。 */
+export async function loadImage(path) {
+  await ensureSession()
+  return new Promise((resolve, reject) => {
+    uni.downloadFile({
+      url: API_BASE + path, header: { Authorization: `Bearer ${token()}` },
+      success: (res) => res.statusCode === 200 ? resolve(res.tempFilePath) : reject(new Error('图片暂不可查看')),
+      fail: () => reject(new Error('图片加载失败')),
+    })
   })
-}
-
-/** 动态详情页：半小时图片流 → GET /zones/{zoneId}/moments/feed */
-export function getMomentFeed(zoneId) {
-  return get(`/zones/${zoneId}/moments/feed`)
-}
-
-/** 撤回图片（仅本人）→ DELETE /moments/{momentId}?userId= */
-export function withdrawMoment(zoneId, momentId) {
-  return del(`/moments/${momentId}`, { userId: CURRENT_USER_ID })
-}
-
-// ========== 互动与关注 ==========
-
-/** 收藏/点赞/emoji → POST /zones/{zoneId}/heart */
-export function collectTrack(zoneId, trackId) {
-  return post(`/zones/${zoneId}/heart`, { userId: CURRENT_USER_ID, trackId, type: 'COLLECT' })
-}
-
-export function heartTrack(zoneId, trackId, type = 'LIKE') {
-  return post(`/zones/${zoneId}/heart`, { userId: CURRENT_USER_ID, trackId, type })
-}
-
-// ========== 用户 ==========
-
-/** 我的页信息 → GET /users/{userId}/profile */
-export function getCurrentUser() {
-  return get(`/users/${CURRENT_USER_ID}/profile`)
-}
-
-/** 任意用户主页信息 → GET /users/{userId}/profile（用户不存在时 reject，message 来自后端 2003） */
-export function getUserProfile(userId) {
-  return get(`/users/${userId}/profile`)
-}
-
-/** 关注用户 → POST /users/{userId}/follow?fromUserId=（当前用户关注目标用户） */
-export function followUser(userId) {
-  return post(`/users/${userId}/follow`, { fromUserId: CURRENT_USER_ID })
-}
-
-/** 取关 → DELETE /users/{userId}/follow?fromUserId= */
-export function unfollowUser(userId) {
-  return del(`/users/${userId}/follow`, { fromUserId: CURRENT_USER_ID })
 }

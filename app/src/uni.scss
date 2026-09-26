@@ -8,7 +8,7 @@
 /* ========== 基础色：黑白灰低饱和冷调 ========== */
 $sz-bg: #f5f6f7;              /* 页面底色：浅灰 */
 $sz-card: #ffffff;            /* 普通卡片 */
-$sz-glass-bg: rgba(255, 255, 255, 0.65);   /* 玻璃卡片半透明底 */
+$sz-glass-bg: rgba(255, 255, 255, 0.50);   /* 毛玻璃：仅用于悬浮操作层 */
 $sz-glass-border: rgba(255, 255, 255, 0.6);/* 玻璃卡片边缘高光 */
 
 /* ========== 文字 ========== */
@@ -28,9 +28,9 @@ $sz-morandi-jpop: #e3c9cd;    /* 日系域：浅樱粉 */
 $sz-morandi-night: #c3b8d9;   /* 深夜域：灰紫 */
 
 /* ========== 圆角（统一大圆角） ========== */
-$sz-radius-sm: 8rpx;
-$sz-radius-md: 20rpx;
-$sz-radius-lg: 28rpx;
+$sz-radius-sm: 16rpx;
+$sz-radius-md: 24rpx;
+$sz-radius-lg: 48rpx;
 
 /* ========== 字号（正文偏小但可读） ========== */
 $sz-font-xs: 22rpx;
@@ -45,5 +45,5 @@ $sz-gap-md: 24rpx;
 $sz-gap-lg: 32rpx;
 
 /* ========== 软阴影（极软） ========== */
-$sz-shadow-soft: 0 8rpx 30rpx rgba(0, 0, 0, 0.06);
-$sz-shadow-float: 0 12rpx 40rpx rgba(0, 0, 0, 0.1);
+$sz-shadow-soft: 0 16rpx 48rpx rgba(0, 0, 0, 0.06);
+$sz-shadow-float: 0 24rpx 64rpx rgba(0, 0, 0, 0.10);

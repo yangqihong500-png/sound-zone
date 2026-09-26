@@ -1,18 +1,17 @@
 <template>
   <view class="page">
-    <view class="nav" :style="{ paddingTop: statusBarHeight + 'px' }">
+    <view class="nav sz-glass" :style="{ paddingTop: statusBarHeight + 'px' }">
       <view class="nav__back" @click="goBack">‹</view>
-      <text class="nav__title">动态</text>
+      <view class="nav__copy"><text class="nav__title">Moments</text><text class="nav__subtitle">Photos from the last 30 minutes</text></view>
       <view class="nav__back" />
     </view>
 
     <!-- 半小时内图片流（时间倒序，决议 D6/D9） -->
     <scroll-view class="page__body" scroll-y>
-      <text class="window-hint">展示半小时内上传的图片</text>
-      <view v-for="m in moments" :key="m.id" class="feed-item">
+      <view v-for="(m, i) in moments" :key="m.id" class="feed-item" :class="{ 'feed-item--right': i % 2 }">
         <moment-card
           :moment="m"
-          :own="m.userId === CURRENT_USER_ID"
+          :own="m.userId === session.userId"
           @withdraw="onWithdraw"
           @user="goUserHome"
         />
@@ -22,12 +21,12 @@
             v-for="e in emojis"
             :key="e.name"
             class="emoji-row__item"
-            :class="{ 'emoji-row__item--active': m._react === e.name }"
+            :class="{ 'emoji-row__item--active': m.reaction === e.name }"
             @click="onReact(m, e.name)"
           >{{ e.icon }}</text>
         </view>
       </view>
-      <view v-if="!moments.length" class="empty">半小时内还没有图片分享</view>
+      <view v-if="!moments.length" class="empty">No moments shared in the last 30 minutes.</view>
       <view class="bottom-spacer" />
     </scroll-view>
   </view>
@@ -39,35 +38,44 @@
  * 半小时内图片流（时间倒序）+ 本人可撤回 + emoji 轻互动，无评论区
  */
 import { ref } from 'vue'
-import { onLoad } from '@dcloudio/uni-app'
-import { getMomentFeed, withdrawMoment } from '@/api/mock.js'
-import { CURRENT_USER_ID } from '@/api/constants.js'
+import { onLoad, onShow, onHide, onUnload } from '@dcloudio/uni-app'
+import { getMomentFeed, withdrawMoment, reactMoment } from '@/api/mock.js'
+import { session } from '@/api/session.js'
 import MomentCard from '@/components/moment-card/moment-card.vue'
 
 const moments = ref([])
 const statusBarHeight = ref(uni.getSystemInfoSync().statusBarHeight || 20)
 const emojis = [
-  { name: 'heart', icon: '♡' },
-  { name: 'laugh', icon: '☺' },
-  { name: 'like', icon: '👍' },
+  { name: 'HEART', icon: '♡' },
+  { name: 'LAUGH', icon: '☺' },
+  { name: 'LIKE', icon: '👍' },
 ]
 
 let zoneId = null
 
-onLoad(async (option) => {
-  zoneId = Number(option.id)
-  moments.value = await getMomentFeed(zoneId)
-})
-
-function onReact(m, name) {
-  // 轻互动：本地态高亮，正式版走 WS 广播（决议 D7）
-  m._react = m._react === name ? null : name
+let timer = null
+let loading = false
+onLoad((option) => { zoneId = Number(option.id) })
+onShow(() => { refresh(); timer = setInterval(refresh, 10000) })
+onHide(() => clearInterval(timer))
+onUnload(() => clearInterval(timer))
+async function refresh() {
+  if (loading || !zoneId) return
+  loading = true
+  try { moments.value = await getMomentFeed(zoneId) }
+  catch (e) { clearInterval(timer); uni.showToast({ title: e.message, icon: 'none' }) }
+  finally { loading = false }
 }
-
+async function onReact(m, type) {
+  if (m._busy) return
+  m._busy = true
+  try { m.reaction = await reactMoment(m.id, m.reaction === type ? null : type) }
+  catch (e) { uni.showToast({ title: e.message, icon: 'none' }) }
+  finally { m._busy = false }
+}
 async function onWithdraw(momentId) {
-  await withdrawMoment(zoneId, momentId)
-  moments.value = moments.value.filter((m) => m.id !== momentId)
-  uni.showToast({ title: '已撤回', icon: 'none' })
+  try { await withdrawMoment(zoneId, momentId); await refresh(); uni.showToast({ title: '已撤回', icon: 'none' }) }
+  catch (e) { uni.showToast({ title: e.message, icon: 'none' }) }
 }
 
 /**
@@ -75,10 +83,10 @@ async function onWithdraw(momentId) {
  */
 function goUserHome(userId) {
   if (!userId || !Number.isInteger(userId) || userId <= 0) {
-    uni.showToast({ title: '用户信息无效', icon: 'none' })
+    uni.showToast({ title: 'User unavailable', icon: 'none' })
     return
   }
-  if (userId === CURRENT_USER_ID) {
+  if (userId === session.userId) {
     uni.switchTab({ url: '/pages/user/index' })
     return
   }
@@ -95,10 +103,14 @@ function goBack() {
   display: flex;
   flex-direction: column;
   height: 100vh;
+  background: $sz-bg;
 
   &__body {
     flex: 1;
-    padding: 0 $sz-gap-md;
+    min-height: 0;
+    height: 0;
+    padding: 24rpx 48rpx 0;
+    box-sizing: border-box;
   }
 }
 
@@ -106,9 +118,11 @@ function goBack() {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding-bottom: 16rpx;
-  padding-left: $sz-gap-md;
-  padding-right: $sz-gap-md;
+  padding-bottom: 22rpx;
+  padding-left: 40rpx;
+  padding-right: 40rpx;
+  border-radius: 0;
+  background: rgba(255,255,255,.55);
 
   &__back {
     font-size: 56rpx;
@@ -117,31 +131,33 @@ function goBack() {
     width: 60rpx;
   }
 
-  &__title {
-    font-size: $sz-font-lg;
-    font-weight: 500;
-  }
-}
-
-.window-hint {
-  font-size: $sz-font-xs;
-  color: $sz-text-tertiary;
-  display: block;
-  padding: $sz-gap-sm 8rpx;
+  &__copy { display: flex; flex: 1; flex-direction: column; }
+  &__title { font-size: 32rpx; font-weight: 600; }
+  &__subtitle { font-size: 20rpx; color: $sz-text-tertiary; }
 }
 
 .feed-item {
-  margin-bottom: $sz-gap-md;
+  width: 88%;
+  margin: 12rpx auto 46rpx 0;
+  transform: rotate(-1.7deg);
+  background: #fff;
+  border-radius: 20rpx;
+  box-shadow: $sz-shadow-soft;
+  padding-bottom: 18rpx;
+  &--right { margin-left: auto; margin-right: 0; transform: rotate(1.5deg); }
+  :deep(.moment-card) { box-shadow: none; }
 }
 
 /* emoji 互动行：轻量不突出 */
 .emoji-row {
   display: flex;
   gap: $sz-gap-lg;
-  padding: 12rpx 16rpx 0;
+  margin: 0 20rpx;
+  padding: 16rpx 8rpx 0;
+  border-top: 1rpx solid rgba(0,0,0,.06);
 
   &__item {
-    font-size: 32rpx;
+    font-size: 30rpx;
     color: $sz-text-tertiary;
 
     &--active {
@@ -158,6 +174,6 @@ function goBack() {
 }
 
 .bottom-spacer {
-  height: 80rpx;
+  height: 100rpx;
 }
 </style>

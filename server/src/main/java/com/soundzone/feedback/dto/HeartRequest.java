@@ -3,7 +3,7 @@ package com.soundzone.feedback.dto;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 
-/** 互动反馈请求（作用于当前播放歌曲）：COLLECT / LIKE / EMOJI_HEART / EMOJI_LAUGH */
+/** 历史反馈请求结构；新接口通过 Bearer 身份与具体条目处理互动。 */
 public record HeartRequest(
         @NotNull(message = "用户 ID 不能为空") Long userId,
         @NotNull(message = "歌曲 ID 不能为空") Long trackId,

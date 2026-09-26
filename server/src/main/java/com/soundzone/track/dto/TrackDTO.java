@@ -10,11 +10,15 @@ public record TrackDTO(
         String title,
         String artist,
         String coverColor,
+        String coverUrl,
         Integer durationSec,
-        Set<String> tags
+        Set<String> tags,
+        String source,
+        String attribution
 ) {
     public static TrackDTO from(Track t) {
         return new TrackDTO(t.getId(), t.getTitle(), t.getArtist(),
-                t.getCoverColor(), t.getDurationSec(), t.getTags());
+                t.getCoverColor(), t.getCoverUrl(), t.getDurationSec(), t.getTags(),
+                t.getSource(), t.getAttribution());
     }
 }

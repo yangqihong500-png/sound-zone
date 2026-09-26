@@ -1,47 +1,61 @@
 package com.soundzone.user.controller;
 
-import com.soundzone.common.Result;
-import com.soundzone.user.dto.UserProfileDTO;
+import com.soundzone.auth.service.CurrentUser;
+import com.soundzone.common.*;
+import com.soundzone.moment.service.MomentService;
 import com.soundzone.user.service.UserService;
+
 import lombok.RequiredArgsConstructor;
+
 import org.springframework.web.bind.annotation.*;
 
-import java.util.List;
-
-/**
- * 用户控制器（我的页 + 关注体系，v2）
- * 【假设】Demo 无登录体系，userId 显式传递；正式版从登录态解析
- */
 @RestController
 @RequestMapping("/users")
 @RequiredArgsConstructor
 public class UserController {
+    private final UserService users;
+    private final MomentService moments;
+    private final CurrentUser current;
 
-    private final UserService userService;
-
-    /** 我的页信息（功能型主页：上传/获赞/分享/关注） */
-    @GetMapping("/{userId}/profile")
-    public Result<UserProfileDTO> profile(@PathVariable Long userId) {
-        return Result.ok(userService.getProfile(userId));
+    @GetMapping("/{id}/profile")
+    public Result<?> profile(@PathVariable Long id) {
+        return Result.ok(users.getProfile(id, current.id()));
     }
 
-    /** 关注上传者（决议 D7，幂等） */
-    @PostMapping("/{userId}/follow")
-    public Result<Void> follow(@PathVariable Long userId, @RequestParam Long fromUserId) {
-        userService.follow(fromUserId, userId);
+    @PostMapping("/{id}/follow")
+    public Result<?> follow(@PathVariable Long id) {
+        users.follow(current.id(), id);
         return Result.ok();
     }
 
-    /** 取消关注 */
-    @DeleteMapping("/{userId}/follow")
-    public Result<Void> unfollow(@PathVariable Long userId, @RequestParam Long fromUserId) {
-        userService.unfollow(fromUserId, userId);
+    @DeleteMapping("/{id}/follow")
+    public Result<?> unfollow(@PathVariable Long id) {
+        users.unfollow(current.id(), id);
         return Result.ok();
     }
 
-    /** 我的关注列表 */
-    @GetMapping("/{userId}/following")
-    public Result<List<String>> following(@PathVariable Long userId) {
-        return Result.ok(userService.following(userId));
+    @GetMapping("/me/following")
+    public Result<?> following() {
+        return Result.ok(users.following(current.id()));
+    }
+
+    @GetMapping("/me/collections")
+    public Result<?> collections() {
+        return Result.ok(users.collections(current.id()));
+    }
+
+    @GetMapping("/me/uploads")
+    public Result<?> uploads() {
+        return Result.ok(users.uploads(current.id()));
+    }
+
+    @GetMapping("/me/zones")
+    public Result<?> zones() {
+        return Result.ok(users.zones(current.id()));
+    }
+
+    @GetMapping("/me/moments")
+    public Result<?> moments() {
+        return Result.ok(moments.mine(current.id()));
     }
 }

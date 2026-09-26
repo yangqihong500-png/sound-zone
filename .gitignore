@@ -11,3 +11,7 @@ target/
 *.log
 .idea/
 .vscode/
+
+# 本地图片与测试数据
+server/data/
+.env.local

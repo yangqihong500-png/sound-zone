@@ -2,10 +2,7 @@ package com.soundzone.common;
 
 import lombok.Getter;
 
-/**
- * 统一响应体：所有 REST 接口的返回结构
- * code = 0 表示成功，其余为错误码（见 ResultCode）
- */
+/** 统一响应体：所有 REST 接口的返回结构 code = 0 表示成功，其余为错误码（见 ResultCode） */
 @Getter
 public class Result<T> {
 
@@ -25,6 +22,10 @@ public class Result<T> {
 
     public static <T> Result<T> ok() {
         return ok(null);
+    }
+
+    public static <T> Result<T> fail(ResultCode rc, String msg, T data) {
+        return new Result<>(rc.getCode(), msg, data);
     }
 
     public static <T> Result<T> fail(ResultCode rc, String msg) {

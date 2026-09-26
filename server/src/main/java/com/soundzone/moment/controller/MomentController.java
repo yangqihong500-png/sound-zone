@@ -1,41 +1,58 @@
 package com.soundzone.moment.controller;
 
+import com.soundzone.auth.service.CurrentUser;
 import com.soundzone.common.Result;
 import com.soundzone.moment.dto.MomentCreateRequest;
-import com.soundzone.moment.dto.MomentDTO;
 import com.soundzone.moment.service.MomentService;
+
 import jakarta.validation.Valid;
+
 import lombok.RequiredArgsConstructor;
+
+import org.springframework.core.io.FileSystemResource;
+import org.springframework.http.*;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
-import java.util.List;
-
-/**
- * 图片分享控制器（docs/02 第 4 步，v2：绑定歌曲 / 半小时图片流 / 撤回）
- */
 @RestController
 @RequiredArgsConstructor
 public class MomentController {
+    private final com.soundzone.common.ResourceLocator locator;
+    private final MomentService moments;
+    private final CurrentUser current;
 
-    private final MomentService momentService;
-
-    /** 发布图片分享（绑定关联歌曲：指定 trackId 或回退当前播放） */
-    @PostMapping("/zones/{zoneId}/moments")
-    public Result<MomentDTO> create(@PathVariable Long zoneId,
-                                    @Valid @RequestBody MomentCreateRequest req) {
-        return Result.ok(momentService.create(zoneId, req));
+    @PostMapping(value = "/zones/{zoneId}/moments", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public Result<?> create(
+            @PathVariable Long zoneId,
+            @Valid @ModelAttribute MomentCreateRequest req,
+            @RequestParam MultipartFile file) {
+        return Result.ok(moments.create(zoneId, current.id(), req, file));
     }
 
-    /** 动态详情页：半小时内图片流（时间倒序） */
     @GetMapping("/zones/{zoneId}/moments/feed")
-    public Result<List<MomentDTO>> feed(@PathVariable Long zoneId) {
-        return Result.ok(momentService.feed(zoneId));
+    public Result<?> feed(@PathVariable Long zoneId) {
+        return Result.ok(moments.feed(zoneId, current.id()));
     }
 
-    /** 撤回图片分享（仅本人） */
-    @DeleteMapping("/moments/{momentId}")
-    public Result<Void> withdraw(@PathVariable Long momentId, @RequestParam Long userId) {
-        momentService.withdraw(momentId, userId);
+    @DeleteMapping("/moments/{id}")
+    public Result<?> withdraw(@PathVariable Long id) {
+        moments.withdraw(locator.momentZone(id), id, current.id());
         return Result.ok();
     }
+
+    @PutMapping("/moments/{id}/reaction")
+    public Result<?> react(@PathVariable Long id, @RequestBody Reaction req) {
+        return Result.ok(moments.react(locator.momentZone(id), id, current.id(), req.type()));
+    }
+
+    @GetMapping("/moments/{id}/image")
+    public ResponseEntity<FileSystemResource> image(@PathVariable Long id) {
+        return ResponseEntity.ok()
+                .cacheControl(CacheControl.noStore())
+                .contentType(MediaType.IMAGE_JPEG)
+                .header("X-Content-Type-Options", "nosniff")
+                .body(new FileSystemResource(moments.image(id, current.id())));
+    }
+
+    public record Reaction(String type) {}
 }

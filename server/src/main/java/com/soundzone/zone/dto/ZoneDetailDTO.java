@@ -3,23 +3,25 @@ package com.soundzone.zone.dto;
 import com.soundzone.moment.dto.MomentDTO;
 import com.soundzone.queue.dto.QueueItemDTO;
 
-import java.util.List;
-import java.util.Set;
+import java.util.*;
 
-/** 域详情（docs/01 三件套：同频电台 + 歌单列表 + 动态区，v2） */
+/** 普通详情不返回密码或邀请码。 */
 public record ZoneDetailDTO(
         Long id,
         String name,
         String scene,
         Integer listeners,
         String host,
+        Long hostId,
         String coverColor,
-        String visibility,        // PUBLIC / PRIVATE
-        String inviteCode,        // 私密域分享凭证（公开域为 null）
+        String visibility,
         Set<String> tags,
-        String filterMode,        // BAN / ALLOW
+        String filterMode,
         Set<String> filterTags,
         NowPlayingDTO nowPlaying,
         List<QueueItemDTO> queue,
-        List<MomentDTO> moments
-) {}
+        List<MomentDTO> moments,
+        long serverTime,
+        long stateVersion,
+        String status,
+        QueueItemDTO imageCandidate) {}

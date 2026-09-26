@@ -1,17 +1,13 @@
 -- ============================================================================
 -- 同频 SoundZone · MySQL 8 表结构
--- 说明：本脚本由 JPA 实体（server/src/main/java/com/soundzone/**/entity/*.java）
---       1:1 推导生成，与 Hibernate 6 的命名策略（camelCase→snake_case）一致。
+-- 说明：新库基线（20 张业务表）。旧库必须执行 migrations/V001__core_closure.sql。
+--       JPA 字段初值与数据库 DEFAULT 分开维护，启动使用 ddl-auto=validate。
 --
--- 使用方式（二选一）：
---   A) 让后端 JPA 自动建表（推荐）：application.yml 中 ddl-auto=update，
---      后端启动即自动创建全部表，无需手动执行本脚本。
---   B) 手动建表：在 Sequel Ace 中执行本脚本后，再将 ddl-auto 改为 validate。
+-- 使用：空库执行本脚本；已有库执行版本化迁移，不要重建业务表。
 --
 -- 字段命名对照：avatarColor→avatar_color, listenerCount→listener_count,
 --              createdAt→created_at, imageUrl→image_url 等。
 -- ============================================================================
-
 -- 业务库由 docker-compose 的 MYSQL_DATABASE 自动创建；此处兜底
 CREATE DATABASE IF NOT EXISTS soundzone
   DEFAULT CHARACTER SET utf8mb4
@@ -22,6 +18,8 @@ USE soundzone;
 -- 1. 用户表（User）
 -- ----------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS sz_user (
+  UNIQUE KEY uk_user_host_subject(host_subject),
+  host_subject VARCHAR(128) DEFAULT NULL,
   id           BIGINT       NOT NULL AUTO_INCREMENT,
   name         VARCHAR(32)  NOT NULL,
   avatar_color VARCHAR(16)  NOT NULL DEFAULT '#8C9BAB',
@@ -34,6 +32,7 @@ CREATE TABLE IF NOT EXISTS sz_user (
 -- 2. 曲目表（Track）—— 音源抽象层的本地映射
 -- ----------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS sz_track (
+  cover_url VARCHAR(512) DEFAULT NULL,
   id           BIGINT       NOT NULL AUTO_INCREMENT,
   title        VARCHAR(128) NOT NULL,
   artist       VARCHAR(64)  NOT NULL,
@@ -41,6 +40,9 @@ CREATE TABLE IF NOT EXISTS sz_track (
   duration_sec INT          NOT NULL DEFAULT 240,
   source       VARCHAR(16)  NOT NULL DEFAULT 'MOCK',
   external_id  VARCHAR(64)  DEFAULT NULL,
+  attribution  VARCHAR(256) DEFAULT NULL,
+  license_reference VARCHAR(512) DEFAULT NULL,
+  KEY idx_track_source_external (source, external_id),
   PRIMARY KEY (id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
@@ -56,6 +58,10 @@ CREATE TABLE IF NOT EXISTS sz_track_tags (
 -- 3. 域表（Zone）
 -- ----------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS sz_zone (
+  last_activity_at DATETIME(6) DEFAULT NULL,
+  state_version BIGINT NOT NULL DEFAULT 0,
+  demo_resident BIT(1) NOT NULL DEFAULT b'0',
+  password_hash VARCHAR(256) DEFAULT NULL,
   id             BIGINT      NOT NULL AUTO_INCREMENT,
   name           VARCHAR(64) NOT NULL,
   scene          VARCHAR(32) NOT NULL,
@@ -114,6 +120,7 @@ CREATE TABLE IF NOT EXISTS sz_zone_period_tags (
 -- 5. 域成员（ZoneMember）—— 同频人数 + 全员退出自动消失
 -- ----------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS sz_zone_member (
+  last_seen_at DATETIME(6) DEFAULT NULL,
   id        BIGINT      NOT NULL AUTO_INCREMENT,
   zone_id   BIGINT      NOT NULL,
   user_id   BIGINT      NOT NULL,
@@ -128,12 +135,14 @@ CREATE TABLE IF NOT EXISTS sz_zone_member (
 -- 6. 上传队列条目（QueueItem）—— FIFO 播放顺序（决议 D3）
 -- ----------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS sz_queue_item (
+  KEY idx_queue_cooldown(zone_id,user_id,created_at,id),
+  KEY idx_queue_fifo(zone_id,status,created_at,id),
   id         BIGINT      NOT NULL AUTO_INCREMENT,
   zone_id    BIGINT      NOT NULL,
   track_id   BIGINT      NOT NULL,
   user_id    BIGINT      NOT NULL,             -- 上传者（requester）
   likes      INT         NOT NULL DEFAULT 0,   -- 点赞数（仅互动信号）
-  status     VARCHAR(16) NOT NULL DEFAULT 'QUEUED', -- PLAYING/QUEUED/PRESET/PLAYED/REMOVED
+  status     VARCHAR(16) NOT NULL DEFAULT 'QUEUED', -- PLAYING/QUEUED/PRESET/PLAYED/STOPPED/REMOVED
   created_at DATETIME(6) NOT NULL,             -- 上传时间 = FIFO 排序依据
   started_at DATETIME(6) DEFAULT NULL,
   played_at  DATETIME(6) DEFAULT NULL,
@@ -148,6 +157,14 @@ CREATE TABLE IF NOT EXISTS sz_queue_item (
 -- 7. 图片分享（Moment）—— (场景, 图, 关联歌曲) 三元组（决议 D6）
 -- ----------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS sz_moment (
+  CONSTRAINT fk_moment_queue FOREIGN KEY(queue_item_id) REFERENCES sz_queue_item(id),
+  KEY idx_moment_feed(zone_id,status,moderation_status,created_at,id),
+  UNIQUE KEY uk_moment_queue_item(queue_item_id),
+  withdrawn_at DATETIME(6) DEFAULT NULL,
+  consented_at DATETIME(6) DEFAULT NULL,
+  training_consent BIT(1) NOT NULL DEFAULT b'0',
+  moderation_status VARCHAR(16) NOT NULL DEFAULT 'APPROVED',
+  queue_item_id BIGINT DEFAULT NULL,
   id         BIGINT       NOT NULL AUTO_INCREMENT,
   zone_id    BIGINT       NOT NULL,
   user_id    BIGINT       NOT NULL,             -- 上传者
@@ -168,6 +185,8 @@ CREATE TABLE IF NOT EXISTS sz_moment (
 -- 8. 反馈事件（FeedbackEvent）—— 收藏/点赞/emoji，归属上传者（决议 D7）
 -- ----------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS sz_feedback_event (
+  CONSTRAINT fk_feedback_queue FOREIGN KEY(queue_item_id) REFERENCES sz_queue_item(id),
+  queue_item_id BIGINT DEFAULT NULL,
   id           BIGINT      NOT NULL AUTO_INCREMENT,
   zone_id      BIGINT      NOT NULL,
   track_id     BIGINT      NOT NULL,
@@ -196,4 +215,57 @@ CREATE TABLE IF NOT EXISTS sz_follow (
   UNIQUE KEY uk_follow (follower_id, followee_id),
   CONSTRAINT fk_follow_follower FOREIGN KEY (follower_id) REFERENCES sz_user (id),
   CONSTRAINT fk_follow_followee FOREIGN KEY (followee_id) REFERENCES sz_user (id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- 新增：会话、互动当前状态、举报、业务事件及训练导出追踪
+
+CREATE TABLE IF NOT EXISTS sz_auth_session (
+  id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  user_id BIGINT NOT NULL, token_hash VARCHAR(64) NOT NULL,
+  expires_at DATETIME(6) NOT NULL, created_at DATETIME(6) NOT NULL,
+  UNIQUE KEY uk_session_token (token_hash),
+  CONSTRAINT fk_session_user FOREIGN KEY (user_id) REFERENCES sz_user(id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+CREATE TABLE IF NOT EXISTS sz_track_collection (
+  id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  user_id BIGINT NOT NULL, track_id BIGINT NOT NULL, created_at DATETIME(6) NOT NULL,
+  UNIQUE KEY uk_collection_user_track (user_id,track_id),
+  CONSTRAINT fk_collection_user FOREIGN KEY(user_id) REFERENCES sz_user(id),
+  CONSTRAINT fk_collection_track FOREIGN KEY(track_id) REFERENCES sz_track(id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+CREATE TABLE IF NOT EXISTS sz_queue_like (
+  id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  user_id BIGINT NOT NULL, queue_item_id BIGINT NOT NULL, created_at DATETIME(6) NOT NULL,
+  UNIQUE KEY uk_like_user_item (user_id,queue_item_id),
+  CONSTRAINT fk_like_user FOREIGN KEY(user_id) REFERENCES sz_user(id),
+  CONSTRAINT fk_like_item FOREIGN KEY(queue_item_id) REFERENCES sz_queue_item(id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+CREATE TABLE IF NOT EXISTS sz_moment_reaction (
+  id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  user_id BIGINT NOT NULL, moment_id BIGINT NOT NULL, type VARCHAR(16) NOT NULL,
+  created_at DATETIME(6) NOT NULL,
+  UNIQUE KEY uk_reaction_user_moment (user_id,moment_id),
+  CONSTRAINT fk_reaction_user FOREIGN KEY(user_id) REFERENCES sz_user(id),
+  CONSTRAINT fk_reaction_moment FOREIGN KEY(moment_id) REFERENCES sz_moment(id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+CREATE TABLE IF NOT EXISTS sz_report (
+  id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  user_id BIGINT NOT NULL, zone_id BIGINT NOT NULL, reason VARCHAR(500) NOT NULL,
+  status VARCHAR(16) NOT NULL DEFAULT 'OPEN', created_at DATETIME(6) NOT NULL,
+  CONSTRAINT fk_report_user FOREIGN KEY(user_id) REFERENCES sz_user(id),
+  CONSTRAINT fk_report_zone FOREIGN KEY(zone_id) REFERENCES sz_zone(id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+CREATE TABLE IF NOT EXISTS sz_activity_event (
+  id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  user_id BIGINT NOT NULL, zone_id BIGINT DEFAULT NULL, item_id BIGINT DEFAULT NULL,
+  type VARCHAR(32) NOT NULL, duration_seconds BIGINT NOT NULL DEFAULT 0,
+  created_at DATETIME(6) NOT NULL,
+  KEY idx_activity_day (created_at,type), KEY idx_activity_user (user_id,type,created_at),
+  CONSTRAINT fk_activity_user FOREIGN KEY(user_id) REFERENCES sz_user(id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+CREATE TABLE IF NOT EXISTS sz_training_export_item (
+  id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  batch_id VARCHAR(36) NOT NULL, moment_id BIGINT NOT NULL, created_at DATETIME(6) NOT NULL,
+  UNIQUE KEY uk_export_batch_moment(batch_id,moment_id),
+  CONSTRAINT fk_export_moment FOREIGN KEY(moment_id) REFERENCES sz_moment(id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

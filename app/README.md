@@ -1,73 +1,41 @@
-# 同频 SoundZone · 前端 Demo（app/）
+# 同频 SoundZone · 前端
 
-基于 **uni-app（Vue3 + Vite）** 的跨端前端：一套代码同时支持 **H5** 与 **微信小程序**。
-产品设计见 `../docs/01~04`，开发方案见 `../docs/05`。
+uni-app（Vue3 + Vite），沿用现有 JavaScript 和 SCSS 风格，支持 H5 与微信小程序构建。
 
-## 快速开始
+## 开发与构建
 
 ```bash
-npm install          # 安装依赖（Node ≥ 18，推荐 22）
-
-npm run dev:h5         # H5 开发预览（默认 http://localhost:5173）
-npm run build:h5       # 构建 H5 产物 → dist/build/h5
-
-npm run dev:mp-weixin    # 微信小程序开发（产物 → dist/dev/mp-weixin，用微信开发者工具导入）
-npm run build:mp-weixin  # 构建微信小程序产物 → dist/build/mp-weixin
+npm install
+npm run dev:h5
+npm run build:h5
+npm run dev:mp-weixin
+npm run build:mp-weixin
 ```
 
-## 前后端联调
+先按 [后端说明](../server/README.md) 启动服务。H5 开发默认请求当前页面主机的 `8080/api`（例如从局域网 IP 打开预览时，也会请求该 IP）；小程序默认仍为 `http://localhost:8080/api`，真机必须在本地 `.env.local` 配置可访问的后端地址：
 
-前端数据层已切换到真实后端（Spring Boot，见 `../server/`）。
-
-1. 先在 VSCode 启动后端（端口 8080，前缀 `/api`），确认可访问：`http://localhost:8080/api/zones/active`
-2. 在 HBuilderX 运行前端 H5
-3. 后端 `CorsConfig` 已放行 `http://localhost:*` 与 `http://127.0.0.1:*`，跨域已处理
-
-关键文件：
-- `src/api/request.js`：统一请求层（baseURL=`http://localhost:8080/api`，响应解包 code=0）
-- `src/api/constants.js`：联调常量（`CURRENT_USER_ID=4` 对应种子数据 octave 用户、`CURRENT_USER_NAME='octave'`）
-- `src/api/mock.js`：暴露与后端 18 个接口对应的函数（文件名保留 mock，内部已走真实请求）
-
-> ⚠️ Demo 无登录体系，userId 硬编码为 4（后端种子数据 octave 用户）。若重置后端数据库导致 ID 变化，需同步改 `constants.js`。
-
-## 目录结构
-
-```
-app/
-├── index.html                  # H5 入口模板
-├── vite.config.js              # Vite 配置（uni 插件）
-├── package.json
-└── src/
-    ├── main.js                 # 应用入口（createSSRApp 工厂）
-    ├── App.vue                 # 根组件 + 全局样式（sz-card / sz-tag）
-    ├── manifest.json           # 多端应用配置
-    ├── pages.json              # 页面路由 + 底部 tabBar 配置
-    ├── uni.scss                # 全局设计令牌（品牌色/字号/间距/圆角）
-    ├── api/
-    │   └── mock.js             # Demo 数据层（后端就绪后替换为 uni.request/WS）
-    ├── components/             # 公共组件（easycom 自动注册，免 import 亦可）
-    │   ├── zone-card/          #   域卡片（首页/发现页共用）
-    │   ├── queue-item/         #   播放队列条目（点赞交互）
-    │   └── moment-card/        #   碎片卡片（图文 + 配乐三元组）
-    └── pages/
-        ├── index/index.vue     # 首页：问候 + 主推域 + 活跃域列表（tab）
-        ├── zone/list.vue       # 发现：场景筛选 + 域列表（tab）
-        ├── zone/detail.vue     # 域详情：播放中 + 队列 + 碎片墙（核心页面）
-        └── user/index.vue      # 我的：歌品值 + 行为统计（tab）
+```dotenv
+VITE_API_BASE=http://localhost:8080/api
+VITE_H5_SHARE_BASE=https://<实际部署域名>/
 ```
 
-## 设计约定
+正式 H5 部署也必须显式配置 `VITE_API_BASE` 为 HTTPS 地址。独立 App 与小程序发布时仍需配置各自的平台标识和合法请求域名；构建通过不代表已经完成真机音频兼容验收。
 
-- **样式**：统一使用 `uni.scss` 中的 `$sz-*` 变量（品牌绿 `#31C27C`、强调红 `#FF5A5F`），禁止在页面里随手写死色值
-- **单位**：全部使用 `rpx`，多端自适应
-- **组件**：新组件放入 `components/组件名/组件名.vue`，享受 easycom 自动注册
-- **数据**：页面只允许从 `api/` 目录取数，不直接写死数据——后端（FastAPI）接入时只改 `api/` 层
+## 页面与数据
 
-## Demo 阶段说明
+- 首页／发现：公开活跃域、场景与关键词筛选。
+- 建域／编辑：至少三首有效曲目、选择顺序、公开或私密、标签双模式；编辑仅修改主题信息。
+- 域详情：服务端权威播放状态、FIFO、冷却、收藏、图片、动态、退出与举报。
+- 动态详情：近三十分钟审核通过的图片、单选 emoji 与本人撤回。
+- 用户主页／我的／我的内容：关注、上传、创建域、收藏、本人图片（含待审核）。
 
-- 数据为本地 mock（`api/mock.js`），接口形态与后端约定一致
-- 封面/碎片图片用色块占位，后续接腾讯云 COS
-- 点歌/发碎片为 Toast 占位，真实交互走 WebSocket（见 docs/05 接入层设计）
+`api/transport.js` 负责 HTTP、错误结构和令牌；`request.js` 负责确保登录；`session.js` 获取独立会话。`mock.js` 为兼容旧引用保留文件名，内部全部调用真实接口，无固定用户 ID。
+
+`services/player.js` 使用 uni-app 音频组件播放 Audius 或授权 HTTPS 音源，并按服务端时间对齐；宿主播放器桥仅为可选兼容层。`zone-session.js` 负责 WebSocket、重连、二十秒心跳和轮询兜底。没有音源时明确提示，客户端不自行跳过歌曲。具体约定见 [实施说明](../docs/06-implementation.md)。
+
+## 视觉约定
+
+沿用日式简约、黑白灰、莫兰迪主题色与玻璃拟态，优先复用 `uni.scss` 的设计变量；主要尺寸使用 rpx。页面通过 api 层取数，公共组件置于 `components/组件名/组件名.vue`。
 
 ## 常见问题
 

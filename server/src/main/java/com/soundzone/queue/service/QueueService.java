@@ -1,157 +1,119 @@
 package com.soundzone.queue.service;
 
-import com.soundzone.common.BizException;
-import com.soundzone.common.ResultCode;
-import com.soundzone.queue.dto.QueueItemDTO;
-import com.soundzone.queue.dto.SongRequest;
-import com.soundzone.queue.entity.QueueItem;
-import com.soundzone.queue.entity.QueueStatus;
-import com.soundzone.queue.repository.QueueItemRepository;
-import com.soundzone.track.entity.Track;
+import com.soundzone.activity.service.ActivityService;
+import com.soundzone.common.*;
+import com.soundzone.queue.dto.*;
+import com.soundzone.queue.entity.*;
+import com.soundzone.queue.repository.*;
 import com.soundzone.track.repository.TrackRepository;
-import com.soundzone.user.entity.User;
+import com.soundzone.track.service.TrackDurationPolicy;
 import com.soundzone.user.repository.UserRepository;
-import com.soundzone.zone.entity.FilterMode;
-import com.soundzone.zone.entity.Zone;
-import com.soundzone.zone.entity.ZonePeriod;
-import com.soundzone.zone.entity.ZoneStatus;
+import com.soundzone.zone.entity.*;
 import com.soundzone.zone.repository.ZonePeriodRepository;
-import com.soundzone.zone.repository.ZoneRepository;
+import com.soundzone.zone.service.ZoneAccess;
+
 import lombok.RequiredArgsConstructor;
+
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.Duration;
-import java.time.LocalDateTime;
-import java.util.List;
-import java.util.Set;
+import java.time.*;
+import java.util.*;
 
-/**
- * 队列服务（docs/02 第 3 步，v2：2026-09-24 会议）
- *
- * 播放顺序：按上传顺序 FIFO（v1 得分公式已废除）
- * 上传准入：① 10 分钟冷却 → ② 域级标签过滤（BAN/ALLOW 双模式）→ ③ 番茄钟时段白名单（不符入预存）
- * 点赞：仅互动信号，不改变播放顺序
- */
 @Service
 @RequiredArgsConstructor
+@Transactional
 public class QueueService {
+    private final QueueItemRepository queue;
+    private final QueueLikeRepository likes;
+    private final ZoneAccess access;
+    private final TrackRepository tracks;
+    private final UserRepository users;
+    private final ZonePeriodRepository periods;
+    private final TagPolicy policy;
+    private final TrackDurationPolicy durations;
+    private final PlaybackService playback;
+    private final ActivityService activity;
+    private final Clock clock;
 
-    /** 上传冷却时长（决议 D4）：单用户单域 10 分钟 1 首 */
-    private static final int COOLDOWN_MINUTES = 10;
-
-    private final QueueItemRepository queueItemRepository;
-    private final ZoneRepository zoneRepository;
-    private final ZonePeriodRepository periodRepository;
-    private final TrackRepository trackRepository;
-    private final UserRepository userRepository;
-
-    /** 上传歌曲：冷却 → 过滤 → 时段白名单 → 入队尾（FIFO） */
-    @Transactional
-    public QueueItemDTO requestSong(Long zoneId, SongRequest req) {
-        Zone zone = zoneRepository.findById(zoneId)
-                .orElseThrow(() -> new BizException(ResultCode.ZONE_NOT_FOUND));
-        if (zone.getStatus() == ZoneStatus.ENDED) {
-            throw new BizException(ResultCode.ZONE_ALREADY_ENDED);
-        }
-        Track track = trackRepository.findById(req.trackId())
-                .orElseThrow(() -> new BizException(ResultCode.TRACK_NOT_FOUND));
-        User requester = userRepository.findById(req.userId())
-                .orElseThrow(() -> new BizException(ResultCode.USER_NOT_FOUND));
-
-        // ① 上传冷却（决议 D4）：10 分钟内已上传 → 拒绝并告知剩余秒数
-        long cooldownRemain = cooldownRemainSeconds(zoneId, requester.getId());
-        if (cooldownRemain > 0) {
-            throw new BizException(ResultCode.UPLOAD_COOLDOWN,
-                    "冷却剩余 " + cooldownRemain + " 秒");
-        }
-
-        // ② 域级标签过滤（决议 D5 双模式）
-        checkZoneFilter(zone, track);
-
+    public QueueItemDTO requestSong(Long zoneId, SongRequest req, Long userId) {
+        Zone zone = access.lock(zoneId);
+        access.member(zoneId, userId);
+        long remain = cooldownRemainSeconds(zoneId, userId);
+        if (remain > 0)
+            throw new BizException(
+                    ResultCode.UPLOAD_COOLDOWN, "请等待冷却结束", new CooldownDTO(remain, 10));
+        var track =
+                tracks.findById(req.trackId())
+                        .orElseThrow(() -> new BizException(ResultCode.TRACK_NOT_FOUND));
+        durations.check(track);
+        policy.check(zone, track);
         QueueItem item = new QueueItem();
         item.setZone(zone);
         item.setTrack(track);
-        item.setRequester(requester);
-
-        // ③ 番茄钟时段白名单（与域级过滤叠加）：不符合当前时段 → 预存队列
-        if (!allowedInCurrentPeriod(zone, track)) {
-            item.setStatus(QueueStatus.PRESET);
-        }
-        // ④ 入队尾：FIFO 由 createdAt 升序保证，无需任何得分字段
-        item = queueItemRepository.save(item);
-        return toDTO(item, null);
-    }
-
-    /** 点赞：+1 赞（仅互动信号，不影响 FIFO 播放顺序） */
-    @Transactional
-    public QueueItemDTO like(Long itemId, Long userId) {
-        QueueItem item = queueItemRepository.findById(itemId)
-                .orElseThrow(() -> new BizException(ResultCode.QUEUE_ITEM_NOT_FOUND));
-        item.setLikes(item.getLikes() + 1);
-        queueItemRepository.save(item);
-        return toDTO(item, null);
-    }
-
-    /** 冷却剩余秒数（0 = 可上传）；前端据此渲染按钮置灰与倒计时（决议 D4） */
-    public long cooldownRemainSeconds(Long zoneId, Long userId) {
-        return queueItemRepository
-                .findFirstByZoneIdAndRequesterIdOrderByCreatedAtDesc(zoneId, userId)
-                .map(last -> {
-                    long elapsed = Duration.between(last.getCreatedAt(), LocalDateTime.now()).getSeconds();
-                    return Math.max(0, COOLDOWN_MINUTES * 60L - elapsed);
-                })
-                .orElse(0L);
-    }
-
-    /**
-     * 域级标签过滤（决议 D5）：
-     * BAN 模式：歌曲标签命中 filterTags → 拒绝（3002）
-     * ALLOW 模式：歌曲标签与 filterTags 无交集 → 拒绝（3009）
-     * filterTags 为空时两种模式均放行
-     */
-    private void checkZoneFilter(Zone zone, Track track) {
-        Set<String> filterTags = zone.getFilterTags();
-        if (filterTags == null || filterTags.isEmpty()) return;
-        boolean hit = track.getTags().stream().anyMatch(filterTags::contains);
-        if (zone.getFilterMode() == FilterMode.BAN && hit) {
-            throw new BizException(ResultCode.SONG_BANNED_BY_ZONE,
-                    "曲目「" + track.getTitle() + "」标签 " + track.getTags() + " 被本域禁止");
-        }
-        if (zone.getFilterMode() == FilterMode.ALLOW && !hit) {
-            throw new BizException(ResultCode.SONG_FILTERED_BY_ZONE,
-                    "曲目「" + track.getTitle() + "」不在本域允许的标签 " + filterTags + " 范围内");
-        }
-    }
-
-    /**
-     * 判断曲目是否符合"当前时段"白名单（番茄钟，docs/02）
-     * 无时段配置 / 当前时段白名单为空 → 放行
-     * 【假设】当前时段按 域创建至今的分钟数 对各时段循环取模推算；
-     *        正式版由服务端权威时钟统一推进并广播时段切换事件
-     */
-    private boolean allowedInCurrentPeriod(Zone zone, Track track) {
-        List<ZonePeriod> periods = periodRepository.findByZoneIdOrderByOrderIndexAsc(zone.getId());
-        if (periods.isEmpty()) return true;
-
-        long cycleMin = periods.stream().mapToLong(ZonePeriod::getDurationMin).sum();
-        long elapsed = Duration.between(zone.getCreatedAt(), LocalDateTime.now()).toMinutes() % cycleMin;
-
-        long acc = 0;
-        for (ZonePeriod p : periods) {
-            acc += p.getDurationMin();
-            if (elapsed < acc) {
-                Set<String> allowed = p.getAllowedTags();
-                if (allowed == null || allowed.isEmpty()) return true;
-                return track.getTags().stream().anyMatch(allowed::contains);
+        item.setRequester(users.getReferenceById(userId));
+        item.setCreatedAt(LocalDateTime.now(clock));
+        // 旧域时段配置继续约束准入，保留 PRESET；新建时段在 MVP 中关闭。
+        var schedule = periods.findByZoneIdOrderByOrderIndexAsc(zoneId);
+        if (!schedule.isEmpty()) {
+            long cycle = schedule.stream().mapToLong(p -> Math.max(1, p.getDurationMin())).sum();
+            long offset =
+                    Math.floorMod(
+                            Duration.between(zone.getCreatedAt(), LocalDateTime.now(clock))
+                                    .toMinutes(),
+                            cycle);
+            for (var p : schedule) {
+                if (offset < Math.max(1, p.getDurationMin())) {
+                    if (!p.getAllowedTags().isEmpty()
+                            && track.getTags().stream().noneMatch(p.getAllowedTags()::contains))
+                        item.setStatus(QueueStatus.PRESET);
+                    break;
+                }
+                offset -= Math.max(1, p.getDurationMin());
             }
         }
-        return true;
+        queue.saveAndFlush(item);
+        zone.setLastActivityAt(LocalDateTime.now(clock));
+        activity.record(userId, zoneId, item.getId(), "UPLOAD", 0);
+        playback.changed(zone);
+        playback.advanceLocked(zone);
+        return QueueItemDTO.from(item, null, false);
     }
 
-    private QueueItemDTO toDTO(QueueItem q, Integer rank) {
-        return new QueueItemDTO(q.getId(), rank, q.getTrack().getTitle(),
-                q.getTrack().getArtist(), q.getLikes(),
-                q.getRequester().getName(), q.getStatus().name());
+    public QueueItemDTO like(Long zoneId, Long itemId, Long userId, boolean active) {
+        Zone zone = access.lock(zoneId);
+        access.member(zoneId, userId);
+        QueueItem item = queue.findById(itemId).orElseThrow();
+        if (!item.getZone().getId().equals(zoneId)) throw new BizException(ResultCode.FORBIDDEN);
+        var previous = likes.findByUserIdAndItemId(userId, itemId);
+        if (active && previous.isEmpty()) {
+            QueueLike like = new QueueLike();
+            like.setUser(users.getReferenceById(userId));
+            like.setItem(item);
+            likes.save(like);
+            item.setLikes(item.getLikes() + 1);
+            activity.record(userId, zoneId, itemId, "LIKE", 0);
+            playback.changed(zone);
+        } else if (!active && previous.isPresent()) {
+            likes.delete(previous.get());
+            item.setLikes(Math.max(0, item.getLikes() - 1));
+            playback.changed(zone);
+        }
+        return QueueItemDTO.from(item, null, active);
+    }
+
+    public long cooldownRemainSeconds(Long zoneId, Long userId) {
+        access.member(zoneId, userId);
+        return queue.findFirstByZoneIdAndRequesterIdOrderByCreatedAtDescIdDesc(zoneId, userId)
+                .map(
+                        q ->
+                                Math.max(
+                                        0,
+                                        600
+                                                - Duration.between(
+                                                                q.getCreatedAt(),
+                                                                LocalDateTime.now(clock))
+                                                        .getSeconds()))
+                .orElse(0L);
     }
 }

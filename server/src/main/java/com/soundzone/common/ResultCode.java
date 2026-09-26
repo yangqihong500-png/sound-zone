@@ -2,14 +2,14 @@ package com.soundzone.common;
 
 import lombok.Getter;
 
-/**
- * 业务错误码
- * 1xxx 参数类 / 2xxx 资源类 / 3xxx 业务规则类（docs/02 机制）/ 5xx 系统类
- */
+/** 业务错误码 1xxx 参数类 / 2xxx 资源类 / 3xxx 业务规则类（docs/02 机制）/ 5xx 系统类 */
 @Getter
 public enum ResultCode {
-
     SUCCESS(0, "成功"),
+
+    UNAUTHENTICATED(1002, "请重新进入同频"),
+    FORBIDDEN(1003, "无权访问该资源"),
+    INTEGRATION_UNAVAILABLE(1004, "宿主服务尚未接入"),
 
     PARAM_INVALID(1001, "参数校验失败"),
 
@@ -18,6 +18,7 @@ public enum ResultCode {
     USER_NOT_FOUND(2003, "用户不存在"),
     QUEUE_ITEM_NOT_FOUND(2004, "队列条目不存在"),
     MOMENT_NOT_FOUND(2005, "图片分享不存在"),
+    ENDPOINT_NOT_FOUND(2006, "接口不存在"),
 
     ZONE_CREATE_TRACKS_NOT_ENOUGH(3001, "创建域至少需要 3 首歌"),
     SONG_BANNED_BY_ZONE(3002, "该歌曲的标签被本域禁止"),
@@ -28,6 +29,7 @@ public enum ResultCode {
     ZONE_PASSWORD_WRONG(3007, "私密域密码错误"),
     NOT_RESOURCE_OWNER(3008, "仅本人可操作"),
     SONG_FILTERED_BY_ZONE(3009, "该歌曲不在本域允许的标签范围内"),
+    SONG_TOO_LONG(3010, "单曲时长超过限制"),
 
     SYSTEM_ERROR(5000, "系统内部错误");
 

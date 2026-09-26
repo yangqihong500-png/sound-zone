@@ -7,9 +7,8 @@ import java.util.HashSet;
 import java.util.Set;
 
 /**
- * 番茄钟时段配置（docs/02 决议 D3）
- * 一个域可有多个时段按 orderIndex 循环轮转；
- * 每个时段绑定曲风白名单：不符合的歌进入预存队列，到允许时段自动转正
+ * 旧番茄钟时段配置，保留历史数据与上传准入兼容。
+ * 本轮不开放新配置，不执行预存歌曲自动转正。
  */
 @Data
 @Entity

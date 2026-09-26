@@ -4,12 +4,14 @@ package com.soundzone.queue.entity;
 public enum QueueStatus {
     /** 正在播放（每个域同一时刻至多一条） */
     PLAYING,
-    /** 活跃队列中，按得分排序等待播放 */
+    /** 活跃队列中，按上传时间及 ID 顺序等待播放 */
     QUEUED,
     /** 预存队列：不符合当前时段白名单，等允许时段自动转正（docs/02 决议 D3） */
     PRESET,
     /** 已播放 */
     PLAYED,
-    /** 被域主移除 */
+    /** 域消散时中止，不计为完整播放。 */
+    STOPPED,
+    /** 历史移除状态，仅保留兼容，不开放域主移除权限 */
     REMOVED
 }

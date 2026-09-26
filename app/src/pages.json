@@ -6,71 +6,86 @@
     {
       "path": "pages/index/index",
       "style": {
-        "navigationBarTitleText": "同频",
-        "navigationBarBackgroundColor": "#FFFFFF",
+        "navigationBarTitleText": "SoundZone",
+        "navigationBarBackgroundColor": "#F5F6F7",
         "navigationBarTextStyle": "black"
       }
     },
     {
       "path": "pages/zone/list",
       "style": {
-        "navigationBarTitleText": "发现域",
-        "navigationBarBackgroundColor": "#FFFFFF",
+        "navigationBarTitleText": "Discover",
+        "navigationBarBackgroundColor": "#F5F6F7",
         "navigationBarTextStyle": "black"
       }
     },
     {
       "path": "pages/user/index",
       "style": {
-        "navigationBarTitleText": "我的",
-        "navigationBarBackgroundColor": "#FFFFFF",
+        "navigationBarTitleText": "Profile",
+        "navigationBarBackgroundColor": "#F5F6F7",
         "navigationBarTextStyle": "black"
       }
     },
     {
       "path": "pages/zone/detail",
       "style": {
-        "navigationBarTitleText": "域详情",
+        "navigationBarTitleText": "Zone",
         "navigationStyle": "custom"
       }
     },
     {
       "path": "pages/zone/create",
       "style": {
-        "navigationBarTitleText": "创建新域",
+        "navigationBarTitleText": "Create Zone",
         "navigationStyle": "custom"
       }
     },
     {
       "path": "pages/zone/moments",
       "style": {
-        "navigationBarTitleText": "动态",
+        "navigationBarTitleText": "Moments",
         "navigationStyle": "custom"
       }
     },
     {
       "path": "pages/user/home",
       "style": {
-        "navigationBarTitleText": "用户主页",
+        "navigationBarTitleText": "Profile",
         "navigationStyle": "custom"
+      }
+    },
+    {
+      "path": "pages/user/library",
+      "style": {
+        "navigationBarTitleText": "My Library"
       }
     }
   ],
   "globalStyle": {
     "navigationBarTextStyle": "black",
-    "navigationBarTitleText": "同频",
-    "navigationBarBackgroundColor": "#FFFFFF",
-    "backgroundColor": "#F7F8FA"
+    "navigationBarTitleText": "SoundZone",
+    "navigationBarBackgroundColor": "#F5F6F7",
+    "backgroundColor": "#F5F6F7"
   },
   "tabBar": {
     "color": "#999999",
     "selectedColor": "#3a3a3c",
-    "backgroundColor": "#FFFFFF",
+    "backgroundColor": "#F5F6F7",
     "borderStyle": "black",
     "list": [
-      { "pagePath": "pages/index/index", "text": "首页" },
-      { "pagePath": "pages/zone/list", "text": "发现" },
-      { "pagePath": "pages/user/index", "text": "我的" }
+      {
+        "pagePath": "pages/index/index",
+        "text": "Home"
+      },
+      {
+        "pagePath": "pages/zone/list",
+        "text": "Discover"
+      },
+      {
+        "pagePath": "pages/user/index",
+        "text": "Me"
+      }
     ]
   }
 }

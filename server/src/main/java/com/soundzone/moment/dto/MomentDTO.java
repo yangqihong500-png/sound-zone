@@ -1,30 +1,36 @@
 package com.soundzone.moment.dto;
 
+import com.soundzone.common.Times;
 import com.soundzone.moment.entity.Moment;
 
 import java.time.format.DateTimeFormatter;
 
-/** 碎片响应（track 为自动绑定的配乐 —— 三元组的关键一环） */
 public record MomentDTO(
         Long id,
-        Long userId,      // 上传者 ID（点击跳转用户主页用）
+        Long userId,
         String text,
         String imageUrl,
         String color,
         String track,
-        String by,        // 上传者昵称（展示用）
-        String time
-) {
-    public static MomentDTO from(Moment m) {
+        String by,
+        String time,
+        long createdAt,
+        Long queueItemId,
+        String moderationStatus,
+        String reaction) {
+    public static MomentDTO from(Moment m, String reaction) {
         return new MomentDTO(
                 m.getId(),
                 m.getUser().getId(),
                 m.getText(),
-                m.getImageUrl(),
+                m.getImageUrl() == null ? null : "/moments/" + m.getId() + "/image",
                 m.getColor(),
-                m.getTrack() != null ? m.getTrack().getTitle() : null,
+                m.getTrack() == null ? null : m.getTrack().getTitle(),
                 m.getUser().getName(),
-                m.getCreatedAt().format(DateTimeFormatter.ofPattern("HH:mm"))
-        );
+                m.getCreatedAt().format(DateTimeFormatter.ofPattern("HH:mm")),
+                Times.millis(m.getCreatedAt()),
+                m.getQueueItem() == null ? null : m.getQueueItem().getId(),
+                m.getModerationStatus().name(),
+                reaction);
     }
 }

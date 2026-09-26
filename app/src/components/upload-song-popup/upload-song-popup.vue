@@ -4,13 +4,16 @@
     <view class="popup-sheet sz-glass" @click.stop>
       <view class="popup-sheet__handle" />
       <view class="popup-sheet__header">
-        <text class="popup-sheet__title">上传歌曲</text>
+        <view>
+          <text class="popup-sheet__title">Upload a Song</text>
+          <text class="popup-sheet__subtitle">Up to 10 minutes per track</text>
+        </view>
         <text class="popup-sheet__close" @click="$emit('close')">✕</text>
       </view>
 
       <!-- 冷却状态：按钮置灰 + 倒计时（决议 D4） -->
       <view v-if="cooldown > 0" class="cooldown-tip">
-        {{ formatCooldown(cooldown) }} 后可上传
+        Cooldown active · next upload in {{ formatCooldown(cooldown) }}
       </view>
 
       <!-- 搜索框：极简横线 -->
@@ -19,7 +22,7 @@
         <input
           class="search-line__input"
           v-model="keyword"
-          placeholder="搜索曲库"
+          placeholder="Search tracks..."
           placeholder-class="placeholder"
           :disabled="cooldown > 0"
         />
@@ -34,15 +37,17 @@
           @click="onPick(track)"
         >
           <view class="track-row__cover" :style="{ backgroundColor: track.coverColor }">
-            <text class="track-row__note">♪</text>
+            <image v-if="track.coverUrl" class="track-row__cover-image" :src="track.coverUrl" mode="aspectFill" />
+            <text v-else class="track-row__note">♪</text>
           </view>
           <view class="track-row__info">
             <text class="track-row__title">{{ track.title }}</text>
             <text class="track-row__artist">{{ track.artist }}</text>
+            <text class="track-row__source">{{ sourceLabel(track) }} · {{ formatDuration(track.durationSec) }}</text>
           </view>
-          <text class="track-row__tags">{{ track.tags.slice(0, 2).join(' · ') }}</text>
+          <text class="track-row__action" :class="{ 'track-row__action--disabled': cooldown > 0 }">{{ cooldown > 0 ? formatCooldown(cooldown) : 'Add' }}</text>
         </view>
-        <view v-if="!tracks.length" class="track-list__empty">没有匹配的曲目</view>
+        <view v-if="!tracks.length" class="track-list__empty">No matching tracks</view>
       </scroll-view>
     </view>
   </view>
@@ -69,30 +74,40 @@ const emit = defineEmits(['close', 'uploaded', 'toast'])
 
 const keyword = ref('')
 const tracks = ref([])
+const uploading = ref(false)
+let searchVersion = 0
+let searchTimer = null
 
 // 打开弹窗时加载全量曲库；搜索词变化实时过滤
 watch(() => props.visible, async (v) => {
   if (v) {
     keyword.value = ''
-    tracks.value = await searchTracks('')
+    await loadTracks('')
   }
 })
 watch(keyword, async (kw) => {
-  tracks.value = await searchTracks(kw)
+  clearTimeout(searchTimer)
+  searchTimer = setTimeout(() => loadTracks(kw), 350)
 })
 
+async function loadTracks(kw) {
+  const version = ++searchVersion
+  try { const results = await searchTracks(kw); if (version === searchVersion) tracks.value = results }
+  catch (e) { emit('toast', e.message) }
+}
 async function onPick(track) {
-  if (props.cooldown > 0) return // 冷却中禁止上传
+  if (props.cooldown > 0 || uploading.value) return // 冷却中禁止上传
+  uploading.value = true
   try {
     // 真实接口：成功返回 QueueItemDTO，失败由 request 层 reject（带 message）
     const item = await uploadSong(props.zoneId, track.id)
     emit('uploaded', item)
-    emit('toast', '已加入歌单')
+    emit('toast', item.status === 'PRESET' ? 'Saved to the preloaded queue' : 'Added to queue')
     emit('close')
   } catch (e) {
     // 冷却 / 过滤拒绝：轻量提示（决议：不使用强弹窗打断）
-    emit('toast', e.message || '上传失败')
-  }
+    emit('toast', e.message || 'Upload failed')
+  } finally { uploading.value = false }
 }
 
 function onMaskClick() {
@@ -104,13 +119,26 @@ function formatCooldown(sec) {
   const s = sec % 60
   return `${m}:${String(s).padStart(2, '0')}`
 }
+
+function formatDuration(sec) {
+  const value = Math.max(0, Number(sec) || 0)
+  return `${Math.floor(value / 60)}:${String(value % 60).padStart(2, '0')}`
+}
+
+function sourceLabel(track) {
+  if (track.attribution) return track.attribution
+  if (track.source === 'AUDIUS') return 'Audius'
+  if (track.source === 'LOCAL_LICENSED') return 'Licensed library'
+  return 'Track metadata'
+}
 </script>
 
 <style lang="scss" scoped>
 .popup-mask {
   position: fixed;
   inset: 0;
-  background-color: rgba(0, 0, 0, 0.25);
+  background-color: rgba(0, 0, 0, 0.30);
+  backdrop-filter: blur(6px);
   display: flex;
   align-items: flex-end;
   z-index: 100;
@@ -119,30 +147,40 @@ function formatCooldown(sec) {
 /* 半屏玻璃弹窗：边缘轻微高光 + 软阴影（视觉规范） */
 .popup-sheet {
   width: 100%;
-  max-height: 70vh;
-  border-radius: $sz-radius-lg $sz-radius-lg 0 0;
-  padding: $sz-gap-md $sz-gap-md calc(#{$sz-gap-md} + env(safe-area-inset-bottom));
+  height: 50vh;
+  min-height: 600rpx;
+  border-radius: 48rpx 48rpx 0 0;
+  padding: 34rpx 40rpx calc(50rpx + env(safe-area-inset-bottom));
   display: flex;
   flex-direction: column;
+  background: rgba(255,255,255,.72);
 
   &__handle {
-    width: 72rpx;
+    width: 80rpx;
     height: 8rpx;
     border-radius: 999rpx;
     background-color: rgba(0, 0, 0, 0.12);
-    margin: 0 auto $sz-gap-sm;
+    margin: 0 auto 28rpx;
   }
 
   &__header {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: $sz-gap-sm;
+    margin-bottom: 28rpx;
   }
 
   &__title {
-    font-size: $sz-font-lg;
-    font-weight: 500;
+    font-size: 32rpx;
+    font-weight: 600;
+    display: block;
+  }
+
+  &__subtitle {
+    display: block;
+    margin-top: 4rpx;
+    color: $sz-text-tertiary;
+    font-size: 20rpx;
   }
 
   &__close {
@@ -153,10 +191,10 @@ function formatCooldown(sec) {
 }
 
 .cooldown-tip {
-  font-size: $sz-font-sm;
+  font-size: 21rpx;
   color: $sz-text-secondary;
-  background-color: rgba(140, 155, 171, 0.15);
-  border-radius: $sz-radius-sm;
+  background-color: rgba(0,0,0,.055);
+  border-radius: 18rpx;
   padding: 12rpx 20rpx;
   margin-bottom: $sz-gap-sm;
   text-align: center;
@@ -167,9 +205,10 @@ function formatCooldown(sec) {
   display: flex;
   align-items: center;
   gap: 12rpx;
-  border-bottom: 1rpx solid rgba(0, 0, 0, 0.15);
-  padding-bottom: 12rpx;
-  margin-bottom: $sz-gap-sm;
+  background: rgba(0,0,0,.055);
+  border-radius: 18rpx;
+  padding: 14rpx 22rpx;
+  margin-bottom: 20rpx;
 
   &__icon {
     color: $sz-text-tertiary;
@@ -178,7 +217,7 @@ function formatCooldown(sec) {
 
   &__input {
     flex: 1;
-    font-size: $sz-font-base;
+    font-size: 25rpx;
   }
 }
 
@@ -187,7 +226,8 @@ function formatCooldown(sec) {
 }
 
 .track-list {
-  max-height: 44vh;
+  flex: 1;
+  min-height: 0;
 
   &__empty {
     text-align: center;
@@ -202,16 +242,23 @@ function formatCooldown(sec) {
   display: flex;
   align-items: center;
   gap: $sz-gap-sm;
-  padding: $sz-gap-sm 4rpx;
+  padding: 18rpx 4rpx;
+  border-bottom: 1rpx solid rgba(0,0,0,.06);
 
   &__cover {
-    width: 72rpx;
-    height: 72rpx;
-    border-radius: $sz-radius-sm;
+    width: 78rpx;
+    height: 78rpx;
+    border-radius: 16rpx;
     display: flex;
     align-items: center;
     justify-content: center;
     flex-shrink: 0;
+    overflow: hidden;
+  }
+
+  &__cover-image {
+    width: 100%;
+    height: 100%;
   }
 
   &__note {
@@ -227,20 +274,30 @@ function formatCooldown(sec) {
   }
 
   &__title {
-    font-size: $sz-font-base;
+    font-size: 25rpx;
+    font-weight: 500;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
   }
 
   &__artist {
-    font-size: $sz-font-xs;
+    font-size: 21rpx;
     color: $sz-text-secondary;
   }
 
-  &__tags {
-    font-size: $sz-font-xs;
+  &__source {
+    font-size: 18rpx;
     color: $sz-text-tertiary;
+  }
+
+  &__action {
+    padding: 8rpx 22rpx;
+    background: $sz-primary;
+    color: #fff;
+    border-radius: 999rpx;
+    font-size: 21rpx;
+    &--disabled { background: rgba(0,0,0,.09); color: $sz-text-tertiary; }
   }
 }
 </style>

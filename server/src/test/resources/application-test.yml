@@ -1,0 +1,23 @@
+spring:
+  datasource:
+    url: ${SOUNDZONE_TEST_DB_URL:jdbc:h2:mem:soundzone_test;MODE=MySQL;DB_CLOSE_DELAY=-1}
+    driver-class-name: ${SOUNDZONE_TEST_DB_DRIVER:org.h2.Driver}
+    username: ${SOUNDZONE_TEST_DB_USER:sa}
+    password: ${SOUNDZONE_TEST_DB_PASSWORD:}
+  jpa:
+    hibernate:
+      ddl-auto: ${SOUNDZONE_TEST_DDL:create-drop}
+    properties:
+      hibernate:
+        dialect: ${SOUNDZONE_TEST_DIALECT:org.hibernate.dialect.H2Dialect}
+soundzone:
+  guest-enabled: true
+  seed-data: false
+  demo-data-enabled: false
+  scheduler-enabled: false
+  image-directory: ${java.io.tmpdir}/soundzone-test-images
+  audio-directory: ${java.io.tmpdir}/soundzone-test-audio
+  admin-key: soundzone-test-operator
+  music:
+    audius:
+      enabled: false

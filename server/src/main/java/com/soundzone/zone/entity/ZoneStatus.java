@@ -4,6 +4,6 @@ package com.soundzone.zone.entity;
 public enum ZoneStatus {
     /** 活跃中（可进入、点歌、发碎片） */
     ACTIVE,
-    /** 已结束（生成域歌单与战报后归档） */
+    /** 已结束（全员退出，保留历史数据） */
     ENDED
 }
