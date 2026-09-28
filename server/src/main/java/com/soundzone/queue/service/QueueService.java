@@ -5,6 +5,7 @@ import com.soundzone.common.*;
 import com.soundzone.queue.dto.*;
 import com.soundzone.queue.entity.*;
 import com.soundzone.queue.repository.*;
+import com.soundzone.realtime.ZoneEvent;
 import com.soundzone.track.repository.TrackRepository;
 import com.soundzone.track.service.TrackDurationPolicy;
 import com.soundzone.user.repository.UserRepository;
@@ -14,6 +15,7 @@ import com.soundzone.zone.service.ZoneAccess;
 
 import lombok.RequiredArgsConstructor;
 
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -24,6 +26,10 @@ import java.util.*;
 @RequiredArgsConstructor
 @Transactional
 public class QueueService {
+    private static final int UPLOAD_COOLDOWN_MINUTES = 5;
+    private static final long UPLOAD_COOLDOWN_SECONDS =
+            Duration.ofMinutes(UPLOAD_COOLDOWN_MINUTES).toSeconds();
+
     private final QueueItemRepository queue;
     private final QueueLikeRepository likes;
     private final ZoneAccess access;
@@ -34,6 +40,7 @@ public class QueueService {
     private final TrackDurationPolicy durations;
     private final PlaybackService playback;
     private final ActivityService activity;
+    private final ApplicationEventPublisher events;
     private final Clock clock;
 
     public QueueItemDTO requestSong(Long zoneId, SongRequest req, Long userId) {
@@ -42,7 +49,9 @@ public class QueueService {
         long remain = cooldownRemainSeconds(zoneId, userId);
         if (remain > 0)
             throw new BizException(
-                    ResultCode.UPLOAD_COOLDOWN, "请等待冷却结束", new CooldownDTO(remain, 10));
+                    ResultCode.UPLOAD_COOLDOWN,
+                    "请等待冷却结束",
+                    new CooldownDTO(remain, UPLOAD_COOLDOWN_MINUTES));
         var track =
                 tracks.findById(req.trackId())
                         .orElseThrow(() -> new BizException(ResultCode.TRACK_NOT_FOUND));
@@ -94,6 +103,9 @@ public class QueueService {
             item.setLikes(item.getLikes() + 1);
             activity.record(userId, zoneId, itemId, "LIKE", 0);
             playback.changed(zone);
+            if (!userId.equals(item.getRequester().getId()))
+                events.publishEvent(
+                        new ZoneEvent(zoneId, "GLOW", item.getRequester().getId(), itemId));
         } else if (!active && previous.isPresent()) {
             likes.delete(previous.get());
             item.setLikes(Math.max(0, item.getLikes() - 1));
@@ -109,11 +121,16 @@ public class QueueService {
                         q ->
                                 Math.max(
                                         0,
-                                        600
+                                        UPLOAD_COOLDOWN_SECONDS
                                                 - Duration.between(
                                                                 q.getCreatedAt(),
                                                                 LocalDateTime.now(clock))
                                                         .getSeconds()))
                 .orElse(0L);
+    }
+
+    public CooldownDTO cooldown(Long zoneId, Long userId) {
+        return new CooldownDTO(
+                cooldownRemainSeconds(zoneId, userId), UPLOAD_COOLDOWN_MINUTES);
     }
 }

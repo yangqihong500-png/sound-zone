@@ -1,0 +1,105 @@
+name: Test and deploy production
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+    paths:
+      - 'app/**'
+      - 'server/**'
+      - 'deploy/**'
+      - 'docker-compose.prod.yml'
+      - '.env.production.example'
+      - '.github/workflows/production.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: soundzone-production
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  backend-test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: server
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: maven
+      - name: Run backend tests
+        run: mvn -B test
+
+  frontend-build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: app
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+      - name: Install frontend dependencies
+        run: npm ci
+      - name: Build H5 frontend
+        run: npm run build:h5
+
+  deploy:
+    if: github.event_name != 'pull_request' && vars.DEPLOY_ENABLED == 'true'
+    needs: [backend-test, frontend-build]
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure SSH
+        env:
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          DEPLOY_KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
+        run: |
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$DEPLOY_SSH_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          printf '%s\n' "$DEPLOY_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+      - name: Synchronize release files
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_PORT: ${{ secrets.DEPLOY_PORT }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+          DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
+        run: |
+          rsync -az --delete \
+            --exclude '.git/' \
+            --exclude '.env.production' \
+            --exclude 'app/node_modules/' \
+            --exclude 'app/dist/' \
+            --exclude 'server/target/' \
+            --exclude 'data/' \
+            --exclude 'backups/' \
+            -e "ssh -p $DEPLOY_PORT" \
+            ./ "$DEPLOY_USER@$DEPLOY_HOST:$DEPLOY_PATH/"
+      - name: Build and restart changed services
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_PORT: ${{ secrets.DEPLOY_PORT }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+          DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
+        run: |
+          ssh -p "$DEPLOY_PORT" "$DEPLOY_USER@$DEPLOY_HOST" \
+            "cd '$DEPLOY_PATH' && \
+             mkdir -p data/images data/audio backups && \
+             sudo docker compose --env-file .env.production -f docker-compose.prod.yml build server && \
+             sudo docker compose --env-file .env.production -f docker-compose.prod.yml build web && \
+             sudo docker compose --env-file .env.production -f docker-compose.prod.yml up -d --remove-orphans && \
+             curl --fail --retry 12 --retry-delay 5 http://127.0.0.1/healthz && \
+             sudo docker compose --env-file .env.production -f docker-compose.prod.yml ps"

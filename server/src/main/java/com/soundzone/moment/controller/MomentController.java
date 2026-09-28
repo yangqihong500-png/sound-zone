@@ -34,6 +34,11 @@ public class MomentController {
         return Result.ok(moments.feed(zoneId, current.id()));
     }
 
+    @GetMapping("/moments/{id}")
+    public Result<?> detail(@PathVariable Long id) {
+        return Result.ok(moments.detail(id, current.id()));
+    }
+
     @DeleteMapping("/moments/{id}")
     public Result<?> withdraw(@PathVariable Long id) {
         moments.withdraw(locator.momentZone(id), id, current.id());

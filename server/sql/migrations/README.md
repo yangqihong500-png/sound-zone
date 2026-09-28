@@ -3,7 +3,7 @@
 ## 执行顺序
 
 1. 停止旧实例的写流量，备份实际业务库和图片持久目录。保留当前应用包与前端产物，记录表行数、旧字段和索引。
-2. 新库使用 `server/sql/schema.sql`（20 张业务表）。已有 v2 库在显式指定的数据库内依次执行 `V001__core_closure.sql`、`V002__independent_music_catalog.sql`、`V003__instant_moments.sql`、`V004__resident_demo_zones.sql`，不要重建表。
+2. 新库使用 `server/sql/schema.sql`（21 张业务表）。已有 v2 库在显式指定的数据库内依次执行 `V001__core_closure.sql`、`V002__independent_music_catalog.sql`、`V003__instant_moments.sql`、`V004__resident_demo_zones.sql`、`V005__direct_messages.sql`，不要重建表。
 3. 脚本逐项检查列、索引及外键是否已存在，可在中途失败修复后重跑。MySQL DDL 隐式提交，**不是一个可整体回滚的事务**。
 4. 新应用使用 `ddl-auto=validate` 启动；先验证身份、私密域、队列、收藏、图片、成员生命周期，再恢复写流量。
 5. 旧密码在成功的私密准入中生成摘要；过渡期保留旧列以便回滚，后续再经评估清理明文。新建域只存摘要。
@@ -20,6 +20,7 @@
 - V002 只为曲目增加可空的署名、授权引用和 `(source, external_id)` 普通索引；旧曲目继续保留原值，不强行认定授权来源。
 - V003 只将图片状态的数据库默认值设为 APPROVED，不改写历史 PENDING／REJECTED；应用代码即使在执行 V003 前也会显式设置新图片状态。
 - V004 为域增加默认关闭的 `demo_resident` 标记，并把旧队列状态 ENUM 平滑转换为当前 `VARCHAR(16)` 定义，保留原值并支持 `STOPPED`。演示数据由应用按稳定标识幂等写入，不改写普通域。
+- V005 只新增 `sz_direct_message` 表和双向会话查询索引，不改写用户或关注关系；私信正文最多 500 字。
 
 ## 回滚
 

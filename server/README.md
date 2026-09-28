@@ -42,7 +42,7 @@ mvn test
 | `soundzone.active-window-minutes` | 首页近期活跃窗口，默认 30 分钟 |
 | `soundzone.presence-grace-seconds` | 成员失联宽限，默认 90 秒 |
 
-`auth` 处理会话与准入；`zone / queue` 处理 FIFO、成员与服务端播放时钟；`realtime` 处理事务提交后推送；`moment` 处理文件校验、即时分享与授权；`feedback / user` 处理幂等互动和个人内容；`activity` 汇总最小必要业务事件。演示初始化器使用 `demo:*` 稳定身份写入 8 个用户和 4 个公开域，重复启动不会重复插入；只对带 `demo_resident` 标记的域保持在线并循环歌单。
+`auth` 处理会话与准入；`zone / queue` 处理 FIFO、成员与服务端播放时钟；`realtime` 处理事务提交后推送；`moment` 处理文件校验、即时分享与授权；`feedback / user` 处理幂等互动和个人内容；`activity` 汇总最小必要业务事件。演示初始化器使用 `demo:*` 稳定身份写入 8 个用户和 4 个公开域，重复启动不会重复插入；带 `demo_resident` 标记的域由演示成员心跳保持在线并循环歌单，实际成员数归零时仍按统一规则结束。
 
 详细规则、完整 API 要点、指标口径与曲库接入边界见 [实施说明](../docs/06-implementation.md)。普通接口身份来自 Bearer 会话，不信任 body/query 中的 userId。图片读取同样检查身份与成员资格。
 

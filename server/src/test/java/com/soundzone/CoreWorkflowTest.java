@@ -9,6 +9,9 @@ import com.soundzone.auth.service.*;
 import com.soundzone.common.*;
 import com.soundzone.feedback.repository.*;
 import com.soundzone.feedback.service.FeedbackService;
+import com.soundzone.message.dto.*;
+import com.soundzone.message.repository.DirectMessageRepository;
+import com.soundzone.message.service.DirectMessageService;
 import com.soundzone.moment.dto.*;
 import com.soundzone.moment.entity.*;
 import com.soundzone.moment.repository.*;
@@ -17,6 +20,7 @@ import com.soundzone.queue.dto.*;
 import com.soundzone.queue.entity.*;
 import com.soundzone.queue.repository.*;
 import com.soundzone.queue.service.*;
+import com.soundzone.realtime.ZoneEvent;
 import com.soundzone.track.entity.Track;
 import com.soundzone.track.repository.TrackRepository;
 import com.soundzone.track.service.TrackService;
@@ -37,6 +41,8 @@ import org.springframework.context.annotation.*;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.event.ApplicationEvents;
+import org.springframework.test.context.event.RecordApplicationEvents;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.awt.image.BufferedImage;
@@ -55,6 +61,7 @@ import javax.imageio.ImageIO;
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
 @Import(CoreWorkflowTest.TimeConfig.class)
+@RecordApplicationEvents
 class CoreWorkflowTest {
     @Autowired ZoneService zones;
     @Autowired ZoneRepository zoneRepo;
@@ -72,11 +79,14 @@ class CoreWorkflowTest {
     @Autowired TrackService trackService;
     @Autowired UserRepository users;
     @Autowired UserService userService;
+    @Autowired DirectMessageService directMessages;
+    @Autowired DirectMessageRepository directMessageRepo;
     @Autowired SessionService sessions;
     @Autowired MutableClock clock;
     @Autowired JdbcTemplate jdbc;
     @Autowired MockMvc mvc;
     @Autowired ObjectMapper json;
+    @Autowired ApplicationEvents applicationEvents;
     @LocalServerPort int port;
     User host, listener, stranger;
     List<Track> songs;
@@ -139,6 +149,7 @@ class CoreWorkflowTest {
                         "sz_zone",
                         "sz_track_tags",
                         "sz_track",
+                        "sz_direct_message",
                         "sz_follow",
                         "sz_auth_session",
                         "sz_user")) jdbc.update("DELETE FROM " + table);
@@ -222,7 +233,12 @@ class CoreWorkflowTest {
         assertEquals(ids.get(0), zone.nowPlaying().trackId());
         assertEquals(ids.subList(1, 3), zone.queue().stream().map(QueueItemDTO::trackId).toList());
         assertEquals(host.getId(), zone.hostId());
-        assertEquals(600, queue.cooldownRemainSeconds(zone.id(), host.getId()));
+        assertEquals(300, queue.cooldownRemainSeconds(zone.id(), host.getId()));
+        assertEquals(5, queue.cooldown(zone.id(), host.getId()).cooldownMinutes());
+        clock.advance(299);
+        assertEquals(1, queue.cooldownRemainSeconds(zone.id(), host.getId()));
+        clock.advance(1);
+        assertEquals(0, queue.cooldownRemainSeconds(zone.id(), host.getId()));
         assertEquals(4, trackService.search("").size());
         assertTrue(zone.tags().isEmpty());
         assertTrue(zones.listActive("电子", null).isEmpty());
@@ -252,6 +268,142 @@ class CoreWorkflowTest {
                                         List.of(ids.get(0), ids.get(1), ids.get(2), 99999L)),
                                 host.getId()));
         assertEquals(1, zoneRepo.count());
+    }
+
+    @Test
+    void quickCreateUsesSafeDefaultsAndRequiresExactlyThreeTracks() {
+        var ids = songs.subList(0, 3).stream().map(Track::getId).toList();
+        var zone =
+                zones.createZone(
+                        new ZoneCreateRequest(
+                                "随便听听",
+                                null,
+                                null,
+                                ids,
+                                null,
+                                null,
+                                null,
+                                null,
+                                null,
+                                null,
+                                null),
+                        host.getId());
+
+        assertEquals("音乐", zone.scene());
+        assertEquals("PUBLIC", zone.visibility());
+        assertEquals("NONE", zone.filterMode());
+        assertTrue(zone.tags().isEmpty());
+        assertTrue(zone.filterTags().isEmpty());
+        assertEquals(ids.get(0), zone.nowPlaying().trackId());
+        assertEquals(ids.subList(1, 3), zone.queue().stream().map(QueueItemDTO::trackId).toList());
+        assertEquals(300, queue.cooldownRemainSeconds(zone.id(), host.getId()));
+
+        assertThrows(
+                BizException.class,
+                () ->
+                        zones.createZone(
+                                new ZoneCreateRequest(
+                                        "四首不允许",
+                                        null,
+                                        null,
+                                        songs.stream().map(Track::getId).toList(),
+                                        null,
+                                        null,
+                                        null,
+                                        null,
+                                        null,
+                                        null,
+                                        null),
+                                listener.getId()));
+        assertThrows(
+                BizException.class,
+                () ->
+                        zones.createZone(
+                                new ZoneCreateRequest(
+                                        "不限制不能带标签",
+                                        null,
+                                        null,
+                                        ids,
+                                        null,
+                                        null,
+                                        "NONE",
+                                        Set.of("舒缓"),
+                                        null,
+                                        null,
+                                        null),
+                                listener.getId()));
+        assertEquals(1, zoneRepo.count());
+    }
+
+    @Test
+    void trackSearchFindsAllPublicZonesAndRanksCurrentBeforeQueuedAndPreset() {
+        var first = create();
+        var second =
+                zones.createZone(
+                        request(
+                                "PUBLIC",
+                                null,
+                                "BAN",
+                                Set.of("电子"),
+                                List.of(
+                                        songs.get(1).getId(),
+                                        songs.get(2).getId(),
+                                        songs.get(3).getId())),
+                        listener.getId());
+        zones.createZone(
+                request(
+                        "PRIVATE",
+                        "0707",
+                        "BAN",
+                        Set.of("电子"),
+                        List.of(
+                                songs.get(1).getId(),
+                                songs.get(2).getId(),
+                                songs.get(3).getId())),
+                stranger.getId());
+
+        var songOne = zones.listActive(null, "测试曲1");
+        assertEquals(
+                List.of(second.id(), first.id()),
+                songOne.stream().map(ZoneSummaryDTO::id).toList());
+        assertEquals("PLAYING", songOne.get(0).searchMatch().type());
+        assertNull(songOne.get(0).searchMatch().position());
+        assertEquals("QUEUED", songOne.get(1).searchMatch().type());
+        assertEquals(1, songOne.get(1).searchMatch().position());
+
+        QueueItem firstSongTwo =
+                queueRepo.findByZoneIdAndStatusOrderByCreatedAtAscIdAsc(
+                                first.id(), QueueStatus.QUEUED)
+                        .stream()
+                        .filter(q -> q.getTrack().getId().equals(songs.get(2).getId()))
+                        .findFirst()
+                        .orElseThrow();
+        firstSongTwo.setStatus(QueueStatus.PRESET);
+        queueRepo.saveAndFlush(firstSongTwo);
+        var songTwo = zones.listActive(null, "测试曲2");
+        assertEquals(
+                List.of(second.id(), first.id()),
+                songTwo.stream().map(ZoneSummaryDTO::id).toList());
+        assertEquals("QUEUED", songTwo.get(0).searchMatch().type());
+        assertEquals("PRESET", songTwo.get(1).searchMatch().type());
+
+        QueueItem firstSongOne =
+                queueRepo.findByZoneIdAndStatusOrderByCreatedAtAscIdAsc(
+                                first.id(), QueueStatus.QUEUED)
+                        .stream()
+                        .filter(q -> q.getTrack().getId().equals(songs.get(1).getId()))
+                        .findFirst()
+                        .orElseThrow();
+        firstSongOne.setStatus(QueueStatus.PLAYED);
+        queueRepo.saveAndFlush(firstSongOne);
+        assertEquals(
+                List.of(second.id()),
+                zones.listActive(null, "测试曲1").stream().map(ZoneSummaryDTO::id).toList());
+
+        assertFalse(zones.listActive(null, "考研自习").isEmpty());
+        assertTrue(
+                zones.listActive(null, "考研自习").stream()
+                        .allMatch(z -> z.searchMatch() == null));
     }
 
     @Test
@@ -351,7 +503,7 @@ class CoreWorkflowTest {
             assertEquals(1, codes.stream().filter(c -> c == 0).count());
             assertEquals(3, codes.stream().filter(c -> c == 3005).count());
             assertEquals(4, queueRepo.count());
-            assertEquals(600, queue.cooldownRemainSeconds(z.id(), listener.getId()));
+            assertEquals(300, queue.cooldownRemainSeconds(z.id(), listener.getId()));
         } finally {
             pool.shutdownNow();
         }
@@ -407,6 +559,21 @@ class CoreWorkflowTest {
         playback.tick(zone.getId());
         playback.tick(zone.getId());
         assertNotNull(zones.getDetail(zone.getId(), host.getId()).nowPlaying());
+    }
+
+    @Test
+    void residentDemoZoneAlsoEndsWhenMemberCountReachesZero() {
+        var created = create();
+        var zone = zoneRepo.findById(created.id()).orElseThrow();
+        zone.setDemoResident(true);
+        zoneRepo.saveAndFlush(zone);
+
+        members.deleteAll(members.findByZoneId(zone.getId()));
+        members.flush();
+        playback.tick(zone.getId());
+
+        assertEquals(ZoneStatus.ENDED, zoneRepo.findById(zone.getId()).orElseThrow().getStatus());
+        assertEquals(0, zoneRepo.findById(zone.getId()).orElseThrow().getListenerCount());
     }
 
     @Test
@@ -467,7 +634,18 @@ class CoreWorkflowTest {
                 BizException.class, () -> moments.create(z.id(), listener.getId(), req, image()));
         var shared = share(z, true);
         assertEquals("APPROVED", shared.moderationStatus());
+        assertEquals(z.id(), shared.zoneId());
+        assertEquals(songs.get(2).getId(), shared.music().id());
+        assertEquals(songs.get(2).getArtist(), shared.music().artist());
         assertEquals(shared.id(), moments.feed(z.id(), listener.getId()).get(0).id());
+        assertEquals(shared.id(), moments.detail(shared.id(), listener.getId()).id());
+        assertTrue(zones.getDetail(z.id(), listener.getId()).moments().isEmpty());
+        clock.advance(10);
+        playback.tick(z.id());
+        assertTrue(zones.getDetail(z.id(), listener.getId()).moments().isEmpty());
+        clock.advance(10);
+        playback.tick(z.id());
+        assertEquals(shared.queueItemId(), zones.getDetail(z.id(), listener.getId()).nowPlaying().itemId());
         assertEquals(shared.id(), zones.getDetail(z.id(), listener.getId()).moments().get(0).id());
         assertTrue(java.nio.file.Files.exists(moments.image(shared.id(), listener.getId())));
         assertThrows(BizException.class, () -> moments.create(z.id(), host.getId(), req, image()));
@@ -475,7 +653,13 @@ class CoreWorkflowTest {
                 songs.get(2).getTitle(), moments.feed(z.id(), listener.getId()).get(0).track());
         var batch = training.export();
         assertEquals(1, ((List<?>) batch.get("items")).size());
-        assertEquals("HEART", moments.react(z.id(), shared.id(), listener.getId(), "HEART"));
+        var heart = moments.react(z.id(), shared.id(), listener.getId(), "HEART");
+        assertEquals("HEART", heart.reaction());
+        assertEquals(1, heart.heartCount());
+        assertEquals(1, moments.feed(z.id(), host.getId()).get(0).heartCount());
+        var unhearted = moments.react(z.id(), shared.id(), listener.getId(), null);
+        assertNull(unhearted.reaction());
+        assertEquals(0, unhearted.heartCount());
         assertThrows(
                 BizException.class, () -> moments.withdraw(z.id(), shared.id(), listener.getId()));
         moments.withdraw(z.id(), shared.id(), host.getId());
@@ -495,7 +679,8 @@ class CoreWorkflowTest {
         momentRepo.saveAndFlush(record);
         assertEquals(shared.id(), moments.feed(z.id(), listener.getId()).get(0).id());
         assertTrue(java.nio.file.Files.exists(moments.image(shared.id(), listener.getId())));
-        assertEquals("HEART", moments.react(z.id(), shared.id(), listener.getId(), "HEART"));
+        assertEquals(
+                "HEART", moments.react(z.id(), shared.id(), listener.getId(), "HEART").reaction());
         record.setModerationStatus(ModerationStatus.REJECTED);
         momentRepo.saveAndFlush(record);
         assertTrue(moments.feed(z.id(), listener.getId()).isEmpty());
@@ -521,6 +706,32 @@ class CoreWorkflowTest {
         assertEquals(0, collections.count());
         clock.advance(1801);
         assertTrue(moments.feed(z.id(), listener.getId()).isEmpty());
+    }
+
+    @Test
+    void aNewLikeNotifiesOnlyTheSongUploaderOnce() {
+        var z = create();
+        join(z.id(), listener.getId());
+        Long playing = z.nowPlaying().itemId();
+
+        queue.like(z.id(), playing, listener.getId(), true);
+        queue.like(z.id(), playing, listener.getId(), true);
+
+        var glowEvents =
+                applicationEvents.stream(ZoneEvent.class)
+                        .filter(event -> "GLOW".equals(event.type()))
+                        .toList();
+        assertEquals(1, glowEvents.size());
+        assertEquals(host.getId(), glowEvents.get(0).toUserId());
+        assertEquals(playing, glowEvents.get(0).itemId());
+
+        queue.like(z.id(), playing, listener.getId(), false);
+        queue.like(z.id(), playing, host.getId(), true);
+        assertEquals(
+                1,
+                applicationEvents.stream(ZoneEvent.class)
+                        .filter(event -> "GLOW".equals(event.type()))
+                        .count());
     }
 
     @Test
@@ -584,33 +795,134 @@ class CoreWorkflowTest {
         }
     }
 
+    @Test
+    void directMessagesRequireAFollowRelationshipAndPersistForBothUsers() {
+        assertThrows(
+                BizException.class,
+                () ->
+                        directMessages.send(
+                                listener.getId(),
+                                host.getId(),
+                                new DirectMessageRequest("hello")));
+
+        userService.follow(listener.getId(), host.getId());
+        var first =
+                directMessages.send(
+                        listener.getId(),
+                        host.getId(),
+                        new DirectMessageRequest("  在听同一首歌吗？  "));
+        var reply =
+                directMessages.send(
+                        host.getId(),
+                        listener.getId(),
+                        new DirectMessageRequest("是的"));
+
+        assertEquals("在听同一首歌吗？", first.body());
+        assertEquals(host.getId(), reply.fromUserId());
+        assertEquals(
+                List.of(first.id(), reply.id()),
+                directMessages.conversation(listener.getId(), host.getId()).stream()
+                        .map(DirectMessageDTO::id)
+                        .toList());
+
+        userService.unfollow(listener.getId(), host.getId());
+        assertEquals(2, directMessages.conversation(host.getId(), listener.getId()).size());
+        assertThrows(
+                BizException.class,
+                () ->
+                        directMessages.send(
+                                host.getId(),
+                                listener.getId(),
+                                new DirectMessageRequest("不能继续发送")));
+        assertThrows(
+                BizException.class,
+                () -> directMessages.conversation(host.getId(), stranger.getId()));
+        assertEquals(2, directMessageRepo.count());
+    }
+
+    @Test
+    void directMessageRestValidationAndRealtimeNotificationWork() throws Exception {
+        userService.follow(listener.getId(), host.getId());
+        String senderToken = tokenFor(listener.getId()), recipientToken = tokenFor(host.getId());
+        var senderEvents = new LinkedBlockingQueue<String>();
+        var recipientEvents = new LinkedBlockingQueue<String>();
+        WebSocket senderSocket = connectMessages(senderToken, senderEvents);
+        WebSocket recipientSocket = connectMessages(recipientToken, recipientEvents);
+        try {
+            assertTrue(senderEvents.poll(5, TimeUnit.SECONDS).contains("READY"));
+            assertTrue(recipientEvents.poll(5, TimeUnit.SECONDS).contains("READY"));
+            mvc.perform(
+                            post("/messages/users/" + host.getId())
+                                    .header("Authorization", "Bearer " + senderToken)
+                                    .contentType("application/json")
+                                    .content("{\"body\":\"\"}"))
+                    .andExpect(jsonPath("$.code").value(1001));
+            mvc.perform(
+                            post("/messages/users/" + host.getId())
+                                    .header("Authorization", "Bearer " + senderToken)
+                                    .contentType("application/json")
+                                    .content("{\"body\":\"demo message\"}"))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.data.body").value("demo message"));
+            assertTrue(awaitEvent(senderEvents, "MESSAGE"));
+            assertTrue(awaitEvent(recipientEvents, "MESSAGE"));
+            mvc.perform(
+                            get("/messages/users/" + listener.getId())
+                                    .header("Authorization", "Bearer " + recipientToken))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.data[0].body").value("demo message"));
+        } finally {
+            senderSocket.sendClose(WebSocket.NORMAL_CLOSURE, "done").join();
+            recipientSocket.sendClose(WebSocket.NORMAL_CLOSURE, "done").join();
+        }
+    }
+
+    private boolean awaitEvent(BlockingQueue<String> events, String type) throws Exception {
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
+        while (System.nanoTime() < deadline) {
+            String message = events.poll(200, TimeUnit.MILLISECONDS);
+            if (message != null && message.contains(type)) return true;
+        }
+        return false;
+    }
+
+    private WebSocket connectMessages(String token, BlockingQueue<String> messages)
+            throws Exception {
+        WebSocket socket = connectSocket("/api/ws/messages", messages);
+        socket.sendText(json.writeValueAsString(Map.of("token", token)), true).join();
+        return socket;
+    }
+
     private WebSocket connect(String token, Long zoneId, BlockingQueue<String> messages)
             throws Exception {
-        var ws =
-                HttpClient.newHttpClient()
-                        .newWebSocketBuilder()
-                        .buildAsync(
-                                URI.create("ws://localhost:" + port + "/api/ws/zones"),
-                                new WebSocket.Listener() {
-                                    private final StringBuilder buffer = new StringBuilder();
-
-                                    public void onOpen(WebSocket socket) {
-                                        socket.request(1);
-                                    }
-
-                                    public CompletionStage<?> onText(
-                                            WebSocket socket, CharSequence data, boolean last) {
-                                        buffer.append(data);
-                                        if (last) {
-                                            messages.add(buffer.toString());
-                                            buffer.setLength(0);
-                                        }
-                                        socket.request(1);
-                                        return null;
-                                    }
-                                })
-                        .get(5, TimeUnit.SECONDS);
+        var ws = connectSocket("/api/ws/zones", messages);
         ws.sendText(json.writeValueAsString(Map.of("token", token, "zoneId", zoneId)), true).join();
         return ws;
+    }
+
+    private WebSocket connectSocket(String path, BlockingQueue<String> messages) throws Exception {
+        return HttpClient.newHttpClient()
+                .newWebSocketBuilder()
+                .buildAsync(
+                        URI.create("ws://localhost:" + port + path),
+                        new WebSocket.Listener() {
+                            private final StringBuilder buffer = new StringBuilder();
+
+                            public void onOpen(WebSocket socket) {
+                                socket.request(1);
+                            }
+
+                            public CompletionStage<?> onText(
+                                    WebSocket socket, CharSequence data, boolean last) {
+                                buffer.append(data);
+                                if (last) {
+                                    messages.add(buffer.toString());
+                                    buffer.setLength(0);
+                                }
+                                socket.request(1);
+                                return null;
+                            }
+                        })
+                .get(5, TimeUnit.SECONDS);
     }
 }

@@ -293,11 +293,14 @@ function sourceLabel(track) {
 
   &__action {
     padding: 8rpx 22rpx;
+    border: 1rpx solid rgba(255,255,255,.68);
     background: $sz-primary;
     color: #fff;
     border-radius: 999rpx;
     font-size: 21rpx;
-    &--disabled { background: rgba(0,0,0,.09); color: $sz-text-tertiary; }
+    font-weight: 600;
+    box-shadow: 0 8rpx 20rpx rgba(59,110,168,.18);
+    &--disabled { border-color: transparent; background: rgba(0,0,0,.09); box-shadow: none; color: $sz-text-tertiary; }
   }
 }
 </style>

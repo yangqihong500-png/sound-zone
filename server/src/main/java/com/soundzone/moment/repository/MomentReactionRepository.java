@@ -8,4 +8,6 @@ import java.util.*;
 
 public interface MomentReactionRepository extends JpaRepository<MomentReaction, Long> {
     Optional<MomentReaction> findByUserIdAndMomentId(Long userId, Long momentId);
+
+    long countByMomentIdAndType(Long momentId, String type);
 }

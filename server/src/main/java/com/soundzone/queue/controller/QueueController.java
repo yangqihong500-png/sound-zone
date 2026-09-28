@@ -35,7 +35,7 @@ public class QueueController {
 
     @GetMapping("/zones/{zoneId}/cooldown")
     public Result<?> cooldown(@PathVariable Long zoneId) {
-        return Result.ok(new CooldownDTO(queue.cooldownRemainSeconds(zoneId, current.id()), 10));
+        return Result.ok(queue.cooldown(zoneId, current.id()));
     }
 
     public record LikeRequest(boolean active) {}

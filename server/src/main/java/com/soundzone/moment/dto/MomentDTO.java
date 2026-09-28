@@ -7,6 +7,7 @@ import java.time.format.DateTimeFormatter;
 
 public record MomentDTO(
         Long id,
+        Long zoneId,
         Long userId,
         String text,
         String imageUrl,
@@ -17,10 +18,13 @@ public record MomentDTO(
         long createdAt,
         Long queueItemId,
         String moderationStatus,
-        String reaction) {
-    public static MomentDTO from(Moment m, String reaction) {
+        String reaction,
+        long heartCount,
+        MomentTrackDTO music) {
+    public static MomentDTO from(Moment m, String reaction, long heartCount) {
         return new MomentDTO(
                 m.getId(),
+                m.getZone().getId(),
                 m.getUser().getId(),
                 m.getText(),
                 m.getImageUrl() == null ? null : "/moments/" + m.getId() + "/image",
@@ -31,6 +35,8 @@ public record MomentDTO(
                 Times.millis(m.getCreatedAt()),
                 m.getQueueItem() == null ? null : m.getQueueItem().getId(),
                 m.getModerationStatus().name(),
-                reaction);
+                reaction,
+                heartCount,
+                MomentTrackDTO.from(m.getTrack()));
     }
 }

@@ -1,6 +1,6 @@
 package com.soundzone.config;
 
-import com.soundzone.realtime.ZoneSocketHandler;
+import com.soundzone.realtime.*;
 
 import lombok.RequiredArgsConstructor;
 
@@ -12,13 +12,15 @@ import org.springframework.web.socket.config.annotation.*;
 @EnableWebSocket
 @RequiredArgsConstructor
 public class WebSocketConfig implements WebSocketConfigurer {
-    private final ZoneSocketHandler handler;
+    private final ZoneSocketHandler zoneHandler;
+    private final DirectMessageSocketHandler messageHandler;
 
     @Value("${soundzone.allowed-origins:http://localhost:*,http://127.0.0.1:*}")
     private String[] origins;
 
     @Override
     public void registerWebSocketHandlers(WebSocketHandlerRegistry registry) {
-        registry.addHandler(handler, "/ws/zones").setAllowedOriginPatterns(origins);
+        registry.addHandler(zoneHandler, "/ws/zones").setAllowedOriginPatterns(origins);
+        registry.addHandler(messageHandler, "/ws/messages").setAllowedOriginPatterns(origins);
     }
 }

@@ -3,12 +3,15 @@
     <text>{{ entryMessage }}</text>
     <template v-if="needsPassword">
       <input v-model="password" password maxlength="32" placeholder="Enter private zone password" />
-      <button :disabled="joining" @click="enterZone">Enter Zone</button>
+      <button class="sz-btn-primary" :disabled="joining" @click="enterZone">Enter Zone</button>
     </template>
-    <button v-if="!joining" @click="goBack">Back to Home</button>
+    <button v-if="!joining" class="sz-btn-secondary" @click="goBack">Back to Home</button>
   </view>
   <view v-else class="detail">
-    <view v-if="glowing" class="edge-glow" />
+    <view v-if="glowing" class="edge-glow">
+      <view class="edge-glow__ring edge-glow__ring--outer" />
+      <view class="edge-glow__ring edge-glow__ring--inner" />
+    </view>
     <!-- 顶部毛玻璃固定栏：返回 / 域名+在线人数 / 更多（决议 D9） -->
     <view class="nav sz-glass" :style="{ paddingTop: statusBarHeight + 'px' }">
       <view class="nav__back" @click="goBack">‹</view>
@@ -37,7 +40,7 @@
           <text v-for="n in 5" v-if="effectTheme === 'travel' || effectTheme === 'jpop' || effectTheme === 'night'" :key="n" class="like-effect__particle" :style="{ '--delay': (n * 70) + 'ms', '--dx': ((n - 3) * 40) + 'rpx' }">{{ effectTheme === 'travel' ? '✈' : effectTheme === 'jpop' ? '✿' : '✦' }}</text>
           <text class="like-effect__heart">♥</text>
         </view>
-        <view class="now-playing__info sz-glass-tinted" :style="{ backgroundColor: (zone.coverColor || '#8c9bab') + '38' }">
+        <view class="now-playing__info sz-glass-tinted">
           <text class="now-playing__eyebrow">NOW PLAYING</text>
           <text class="now-playing__title">{{ zone.nowPlaying.title }}</text>
           <text class="now-playing__artist" @click="goUserHome(zone.nowPlaying.userId)">{{ zone.nowPlaying.artist }} · uploaded by @{{ zone.nowPlaying.by }}</text>
@@ -52,13 +55,13 @@
 
       <view v-if="playback.message" class="playback-message">{{ playback.message }}</view>
       <button v-if="playback.needsGesture" class="audio-unlock" @click="unlockAudio">
-        {{ playback.loading ? 'Start when ready' : 'Start synchronized playback' }}
+        点击开始同步播放
       </button>
       <!-- 动态分享区：主界面 1-2 张，可横滑，点击进入动态详情（决议 D6/D9） -->
       <view v-if="zone.moments.length" class="section">
         <view class="section__header" @click="goMoments">
           <text class="section__title">Moments</text>
-          <text class="section__more">See all →</text>
+          <text class="section__more section__more--action">See all →</text>
         </view>
         <scroll-view scroll-x enhanced :show-scrollbar="false" class="moment-scroll">
           <view class="moment-scroll__inner">
@@ -66,13 +69,11 @@
               v-for="m in zone.moments.slice(0, 2)"
               :key="m.id"
               class="moment-scroll__item"
-              @click="goMoments"
+              @click="goMoment(m.id)"
             >
               <moment-card
                 :moment="m"
                 compact
-                :own="m.userId === session.userId"
-                @withdraw="onWithdraw"
                 @user="goUserHome"
               />
             </view>
@@ -84,7 +85,7 @@
       <view class="section">
         <view class="section__header">
           <text class="section__title">Up Next</text>
-          <text class="section__more">{{ zone.queue.length }} queued</text>
+          <text class="section__more section__more--status">{{ zone.queue.length }} queued</text>
         </view>
         <view class="sz-card queue-card">
           <queue-item
@@ -109,21 +110,20 @@
       <view class="bottom-spacer" />
     </scroll-view>
 
-    <!-- 底部悬浮毛玻璃操作栏：上传歌曲 / 上传图片（冷却置灰+倒计时，决议 D4/D9） -->
+    <!-- 底部悬浮毛玻璃操作栏：上传歌曲；上传成功后可选附图（冷却置灰+倒计时，决议 D4/D9） -->
     <view class="action-bar sz-glass">
       <button
-        class="action-bar__btn"
-        :class="{ 'action-bar__btn--disabled': cooldown > 0 }"
+        class="action-bar__btn sz-btn-primary"
+        :class="{ 'action-bar__btn--disabled': cooldown > 0, 'sz-btn-primary--disabled': cooldown > 0 }"
         :disabled="cooldown > 0"
         @click="onUploadSong"
       >
         <text>Upload Song</text>
         <text v-if="cooldown > 0" class="action-bar__time"> ({{ formatCooldown(cooldown) }})</text>
       </button>
-      <button class="action-bar__btn action-bar__btn--primary" :disabled="!imageCandidate" @click="openImage">Upload Photo</button>
     </view>
 
-    <!-- 两个半屏玻璃弹窗 -->
+    <!-- 上传歌曲弹窗；成功后顺序打开可选附图弹窗 -->
     <upload-song-popup
       :visible="showSongPopup"
       :cooldown="cooldown"
@@ -147,7 +147,7 @@
 <script setup>
 import { ref, computed } from 'vue'
 import { onLoad, onShow, onUnload } from '@dcloudio/uni-app'
-import { getZoneDetail, getCooldown, collectTrack, withdrawMoment, joinZone, leaveZone, getInvite, reportZone } from '@/api/mock.js'
+import { getZoneDetail, getCooldown, collectTrack, joinZone, leaveZone, getInvite, reportZone } from '@/api/mock.js'
 import { session } from '@/api/session.js'
 import { playback, syncPlayer, positionSeconds, unlockAudio } from '@/services/player.js'
 import { attachZone, leaveCurrentZone } from '@/services/zone-session.js'
@@ -173,6 +173,7 @@ const imageCandidate = computed(() => zone.value?.imageCandidate)
 const collected = computed(() => !!zone.value?.nowPlaying?.collected)
 let zoneId = null
 let inviteCode = null
+let returnHome = false
 let timer = null
 let glowTimer = null
 let likeTimer = null
@@ -184,6 +185,7 @@ let unloaded = false
 onLoad((option) => {
   zoneId = Number(option.id)
   inviteCode = option.inviteCode || null
+  returnHome = option.returnHome === '1'
   if (!Number.isInteger(zoneId) || zoneId <= 0) { entryMessage.value = '域链接无效'; return }
   enterZone()
   timer = setInterval(() => {
@@ -243,7 +245,6 @@ function showGlow() {
   glowTimer = setTimeout(() => { glowing.value = false }, 1800)
 }
 function onUploadSong() { if (!cooldown.value) showSongPopup.value = true }
-function openImage() { if (imageCandidate.value) showImagePopup.value = true }
 async function onSongUploaded(item) {
   if (!zone.value) return
   zone.value.imageCandidate = item
@@ -292,16 +293,29 @@ function onMore() {
     }
   } })
 }
-async function onWithdraw(momentId) {
-  try { await withdrawMoment(zoneId, momentId); await refresh(); toast('已撤回') } catch (e) { toast(e.message) }
-}
 function goMoments() { uni.navigateTo({ url: `/pages/zone/moments?id=${zoneId}` }) }
+function goMoment(momentId) { uni.navigateTo({ url: `/pages/zone/moment-detail?id=${momentId}` }) }
 function goUserHome(userId) {
   if (!Number.isInteger(userId) || userId <= 0) return
   if (userId === session.userId) uni.switchTab({ url: '/pages/user/index' })
   else uni.navigateTo({ url: `/pages/user/home?userId=${userId}` })
 }
-function goBack() { uni.navigateBack({ fail: () => uni.switchTab({ url: '/pages/index/index' }) }) }
+function goBack() {
+  // 创建成功或外部直达详情时没有可靠的上一页，直接回 Home。
+  if (returnHome || getCurrentPages().length <= 1) {
+    goHome()
+    return
+  }
+  uni.navigateBack({
+    fail: goHome,
+  })
+}
+function goHome() {
+  uni.switchTab({
+    url: '/pages/index/index',
+    fail: () => uni.reLaunch({ url: '/pages/index/index' }),
+  })
+}
 function toast(title) { uni.showToast({ title, icon: 'none' }) }
 function formatCooldown(sec) { return `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, '0')}` }
 </script>
@@ -309,9 +323,62 @@ function formatCooldown(sec) { return `${Math.floor(sec / 60)}:${String(sec % 60
 <style lang="scss" scoped>
 .entry-state { padding: 100rpx 40rpx; display: flex; flex-direction: column; gap: 32rpx; color: $sz-text-secondary; }
 .playback-message { text-align: center; color: $sz-text-tertiary; font-size: $sz-font-xs; padding: 12rpx; }
-.audio-unlock { font-size: $sz-font-sm; margin: 16rpx; border-radius: 999rpx; background: $sz-primary; color: #fff; }
-.edge-glow { position: fixed; inset: 0; z-index: 200; pointer-events: none; box-shadow: inset 0 0 55rpx rgba(168,184,200,.65); animation: glow 1.8s ease-out; }
-@keyframes glow { 0%, 100% { opacity: 0; } 30% { opacity: 1; } }
+.audio-unlock {
+  display: flex;
+  width: fit-content;
+  min-height: 0;
+  margin: 0 auto 12rpx;
+  padding: 4rpx 16rpx;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 999rpx;
+  background: $sz-primary-soft;
+  box-shadow: none;
+  color: $sz-primary;
+  font-size: $sz-font-xs;
+  font-weight: 500;
+  line-height: 1.6;
+}
+.audio-unlock::after { border: 0; }
+.edge-glow {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  overflow: hidden;
+  pointer-events: none;
+  background: radial-gradient(ellipse at center, transparent 56%, rgba(59,110,168,.06) 78%, rgba(143,176,210,.28) 100%);
+  animation: edge-glow-veil 1.8s ease-out forwards;
+
+  &__ring {
+    position: absolute;
+    border-style: solid;
+    border-color: rgba(202,224,246,.9);
+    border-radius: 42rpx;
+    box-shadow: inset 0 0 48rpx rgba(59,110,168,.48), 0 0 30rpx rgba(143,176,210,.55);
+    opacity: 0;
+  }
+
+  &__ring--outer {
+    inset: -8rpx;
+    border-width: 8rpx;
+    animation: edge-glow-ring 1.35s cubic-bezier(.2,.7,.2,1) forwards;
+  }
+
+  &__ring--inner {
+    inset: 22rpx;
+    border-width: 3rpx;
+    animation: edge-glow-ring 1.25s .12s cubic-bezier(.2,.7,.2,1) forwards;
+  }
+}
+@keyframes edge-glow-veil { 0%, 100% { opacity: 0; } 18%, 45% { opacity: 1; } 30% { opacity: .62; } }
+@keyframes edge-glow-ring {
+  0% { opacity: 0; transform: scale(.985); }
+  18% { opacity: .95; }
+  36% { opacity: .38; }
+  52% { opacity: .9; }
+  100% { opacity: 0; transform: scale(1.035); }
+}
 
 .detail {
   display: flex;
@@ -456,12 +523,12 @@ function formatCooldown(sec) { return `${Math.floor(sec / 60)}:${String(sec % 60
     color: #fff;
     font-size: 36rpx;
     z-index: 2;
-    &.collected { color: #e3c9cd; }
+    &.collected { color: #ffffff; background: $sz-primary; }
   }
 
   &--idle {
     display: flex; align-items: center; justify-content: center;
-    background: linear-gradient(140deg, #a8b8c8, #c3b8d9);
+    background: linear-gradient(140deg, #3b6ea8, #8fb0d2);
   }
 
   &__idle-text {
@@ -473,7 +540,7 @@ function formatCooldown(sec) { return `${Math.floor(sec / 60)}:${String(sec % 60
 .like-effect {
   position: absolute; inset: 0; z-index: 3; pointer-events: none;
   display: flex; align-items: center; justify-content: center;
-  color: #a8b8c8;
+  color: $sz-primary;
   &__heart { font-size: 60rpx; animation: like-pop 1.1s ease-out forwards; }
   &__ring { position: absolute; width: 110rpx; height: 110rpx; border-radius: 50%; border: 3rpx solid currentColor; animation: like-ring 1.1s ease-out forwards; }
   &__ring--two { animation-delay: .18s; }
@@ -508,9 +575,19 @@ function formatCooldown(sec) { return `${Math.floor(sec / 60)}:${String(sec % 60
   }
 
   &__more {
-    font-size: 21rpx;
-    color: $sz-text-secondary;
-    text-decoration: underline;
+    display: inline-flex;
+    align-items: center;
+    min-height: 44rpx;
+    box-sizing: border-box;
+    padding: 5rpx 16rpx;
+    border: 1rpx solid $sz-primary-border;
+    border-radius: 999rpx;
+    background: $sz-primary-soft;
+    color: $sz-primary;
+    font-size: 20rpx;
+    font-weight: 600;
+    line-height: 1;
+    text-decoration: none;
   }
 }
 
@@ -549,33 +626,29 @@ function formatCooldown(sec) { return `${Math.floor(sec / 60)}:${String(sec % 60
 .action-bar {
   display: flex;
   flex-shrink: 0;
-  gap: 20rpx;
   padding: 22rpx 32rpx calc(22rpx + env(safe-area-inset-bottom));
   border-radius: 0;
-  background: rgba(255,255,255,.58);
+  background: rgba(255,255,255,.86);
 
   &__btn {
     flex: 1;
     font-size: 25rpx;
     font-weight: 600;
-    background-color: rgba(0, 0, 0, 0.06);
-    color: $sz-text-secondary;
+    background-color: $sz-primary;
+    color: #ffffff;
     border-radius: 999rpx;
+    box-shadow: 0 14rpx 30rpx rgba(59,110,168,.22);
 
     &::after {
       border: none;
     }
 
-    &--primary {
-      background-color: $sz-primary;
-      color: #ffffff;
-      font-weight: 500;
-    }
-
     /* 冷却置灰（决议 D4） */
     &--disabled {
-      opacity: 0.45;
-      color: $sz-text-secondary;
+      background-color: rgba(0,0,0,.08);
+      box-shadow: none;
+      color: $sz-text-tertiary;
+      opacity: 1;
     }
   }
   &__time { font-size: 20rpx; font-weight: 400; }

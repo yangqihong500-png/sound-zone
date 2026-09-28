@@ -4,6 +4,7 @@ import com.soundzone.activity.service.ActivityService;
 import com.soundzone.auth.service.PasswordService;
 import com.soundzone.common.*;
 import com.soundzone.feedback.repository.TrackCollectionRepository;
+import com.soundzone.moment.dto.MomentDTO;
 import com.soundzone.moment.service.MomentService;
 import com.soundzone.queue.dto.QueueItemDTO;
 import com.soundzone.queue.entity.*;
@@ -53,54 +54,134 @@ public class ZoneService {
         String filter = normalizeScene(scene);
         String kw = keyword == null ? "" : keyword.strip().toLowerCase(Locale.ROOT);
         LocalDateTime after = LocalDateTime.now(clock).minusMinutes(activeWindow);
-        return zones
-                .findByStatusAndVisibilityOrderByListenerCountDesc(
-                        ZoneStatus.ACTIVE, ZoneVisibility.PUBLIC)
-                .stream()
-                .filter(
-                        z ->
-                                z.getListenerCount() > 0
-                                        && z.getLastActivityAt() != null
-                                        && !z.getLastActivityAt().isBefore(after))
-                .filter(
-                        z ->
-                                scene == null
-                                        || scene.isBlank()
-                                        || "全部".equals(scene)
-                                        || z.getScene().equals(filter)
-                                        || positiveTag(z, scene)
-                                        || ("日系".equals(scene) && positiveTag(z, "日语")))
-                .map(this::summary)
-                .filter(z -> z.nowPlaying() != null)
-                .filter(
-                        z ->
-                                kw.isEmpty()
-                                        || (z.name()
-                                                        + z.scene()
-                                                        + z.tags().stream().filter(tag -> !isBannedTag(z.filterMode(), z.filterTags(), tag)).toList()
-                                                        + z.nowPlaying().title()
-                                                        + z.nowPlaying().artist())
-                                                .toLowerCase(Locale.ROOT)
-                                                .contains(kw))
+        List<Zone> candidates =
+                zones
+                        .findByStatusAndVisibilityOrderByListenerCountDesc(
+                                ZoneStatus.ACTIVE, ZoneVisibility.PUBLIC)
+                        .stream()
+                        .filter(
+                                z ->
+                                        z.getListenerCount() > 0
+                                                && z.getLastActivityAt() != null
+                                                && !z.getLastActivityAt().isBefore(after))
+                        .filter(
+                                z ->
+                                        scene == null
+                                                || scene.isBlank()
+                                                || "全部".equals(scene)
+                                                || z.getScene().equals(filter)
+                                                || positiveTag(z, scene)
+                                                || ("日系".equals(scene)
+                                                        && positiveTag(z, "日语")))
+                        .toList();
+        if (candidates.isEmpty()) return List.of();
+
+        if (kw.isEmpty())
+            return candidates.stream()
+                    .map(this::summary)
+                    .filter(z -> z.nowPlaying() != null)
+                    .toList();
+
+        Map<Long, List<QueueItem>> searchable =
+                queue.findSearchableByZoneIds(
+                                candidates.stream().map(Zone::getId).toList(),
+                                List.of(QueueStatus.PLAYING, QueueStatus.QUEUED, QueueStatus.PRESET))
+                        .stream()
+                        .collect(
+                                java.util.stream.Collectors.groupingBy(
+                                        q -> q.getZone().getId(), LinkedHashMap::new,
+                                        java.util.stream.Collectors.toList()));
+
+        return candidates.stream()
+                .map(z -> searchResult(z, searchable.getOrDefault(z.getId(), List.of()), kw))
+                .filter(Objects::nonNull)
+                .sorted(
+                        Comparator.comparingInt(ZoneSearchResult::rank)
+                                .thenComparingInt(ZoneSearchResult::position)
+                                .thenComparing(
+                                        (ZoneSearchResult r) -> r.summary().listeners(),
+                                        Comparator.reverseOrder())
+                                .thenComparing(r -> r.summary().id()))
+                .map(ZoneSearchResult::summary)
                 .toList();
+    }
+
+    private ZoneSearchResult searchResult(Zone zone, List<QueueItem> items, String keyword) {
+        ZoneSearchMatchDTO trackMatch = findTrackMatch(items, keyword);
+        boolean metadataMatch =
+                (zone.getName()
+                                + zone.getScene()
+                                + zone.getTags().stream()
+                                        .filter(
+                                                tag ->
+                                                        !isBannedTag(
+                                                                zone.getFilterMode().name(),
+                                                                zone.getFilterTags(),
+                                                                tag))
+                                        .toList())
+                        .toLowerCase(Locale.ROOT)
+                        .contains(keyword);
+        if (trackMatch == null && !metadataMatch) return null;
+        ZoneSummaryDTO summary = summary(zone, trackMatch);
+        if (summary.nowPlaying() == null) return null;
+        int rank = trackMatch == null ? 3 : matchRank(trackMatch.type());
+        int position = trackMatch == null || trackMatch.position() == null ? 0 : trackMatch.position();
+        return new ZoneSearchResult(summary, rank, position);
+    }
+
+    private ZoneSearchMatchDTO findTrackMatch(List<QueueItem> items, String keyword) {
+        ZoneSearchMatchDTO best = null;
+        int queuedPosition = 0;
+        int presetPosition = 0;
+        for (QueueItem item : items) {
+            Integer position = null;
+            if (item.getStatus() == QueueStatus.QUEUED) position = ++queuedPosition;
+            else if (item.getStatus() == QueueStatus.PRESET) position = ++presetPosition;
+            var track = item.getTrack();
+            if (!(track.getTitle().toLowerCase(Locale.ROOT).contains(keyword)
+                    || track.getArtist().toLowerCase(Locale.ROOT).contains(keyword))) continue;
+            ZoneSearchMatchDTO current =
+                    new ZoneSearchMatchDTO(
+                            item.getStatus().name(), track.getTitle(), track.getArtist(), position);
+            if (best == null
+                    || matchRank(current.type()) < matchRank(best.type())
+                    || (matchRank(current.type()) == matchRank(best.type())
+                            && searchPosition(current) < searchPosition(best))) best = current;
+        }
+        return best;
+    }
+
+    private int matchRank(String type) {
+        return switch (type) {
+            case "PLAYING" -> 0;
+            case "QUEUED" -> 1;
+            case "PRESET" -> 2;
+            default -> 3;
+        };
+    }
+
+    private int searchPosition(ZoneSearchMatchDTO match) {
+        return match.position() == null ? 0 : match.position();
     }
 
     public ZoneDetailDTO createZone(ZoneCreateRequest req, Long userId) {
         if (req.trackIds() == null
-                || req.trackIds().size() < 3
+                || req.trackIds().size() != 3
                 || new HashSet<>(req.trackIds()).size() != req.trackIds().size())
-            throw new BizException(ResultCode.PARAM_INVALID, "初始歌单至少三首且不能重复");
+            throw new BizException(ResultCode.PARAM_INVALID, "初始歌单必须是三首不同歌曲");
         if (req.periods() != null && !req.periods().isEmpty())
             throw new BizException(ResultCode.PARAM_INVALID, "番茄钟将在后续阶段开放");
         Zone zone = new Zone();
         zone.setName(req.name().strip());
-        zone.setScene(normalizeScene(req.scene()));
+        zone.setScene(
+                normalizeScene(
+                        req.scene() == null || req.scene().isBlank() ? "音乐" : req.scene()));
         zone.setHost(
                 users.findById(userId)
                         .orElseThrow(() -> new BizException(ResultCode.USER_NOT_FOUND)));
         zone.setFilterMode(
                 req.filterMode() == null
-                        ? FilterMode.BAN
+                        ? FilterMode.NONE
                         : FilterMode.valueOf(req.filterMode().toUpperCase(Locale.ROOT)));
         zone.setVisibility(
                 req.visibility() == null
@@ -111,7 +192,7 @@ public class ZoneService {
                 zone.getFilterMode(),
                 zone.getFilterTags(),
                 req.tags() == null ? Set.of() : req.tags());
-        // 新建域只有一组标签：允许模式用于正向展示；禁止模式不能作为推荐标签。
+        // 新建域只有一组标签：允许模式用于正向展示；禁止和不限制模式不生成推荐标签。
         if (zone.getFilterMode() == FilterMode.ALLOW)
             zone.getTags().addAll(zone.getFilterTags());
         zone.setCoverColor(themeColor(zone.getScene()));
@@ -269,6 +350,19 @@ public class ZoneService {
                         .filter(q -> !moments.hasImage(q.getId()))
                         .map(q -> QueueItemDTO.from(q, null, false))
                         .orElse(null);
+        NowPlayingDTO nowPlaying = currentPlaying(zone.getId(), userId);
+        List<MomentDTO> momentPreviews =
+                nowPlaying == null
+                        ? List.of()
+                        : moments.feed(zone.getId(), userId).stream()
+                                .filter(
+                                        m ->
+                                                m.music() != null
+                                                        && Objects.equals(
+                                                                m.music().id(),
+                                                                nowPlaying.trackId()))
+                                .limit(2)
+                                .toList();
         return new ZoneDetailDTO(
                 zone.getId(),
                 zone.getName(),
@@ -281,9 +375,9 @@ public class ZoneService {
                 zone.getTags(),
                 zone.getFilterMode().name(),
                 zone.getFilterTags(),
-                currentPlaying(zone.getId(), userId),
+                nowPlaying,
                 items,
-                moments.feed(zone.getId(), userId).stream().limit(2).toList(),
+                momentPreviews,
                 clock.millis(),
                 zone.getStateVersion(),
                 zone.getStatus().name(),
@@ -337,6 +431,10 @@ public class ZoneService {
     }
 
     public ZoneSummaryDTO summary(Zone z) {
+        return summary(z, null);
+    }
+
+    private ZoneSummaryDTO summary(Zone z, ZoneSearchMatchDTO searchMatch) {
         return new ZoneSummaryDTO(
                 z.getId(),
                 z.getName(),
@@ -348,8 +446,12 @@ public class ZoneService {
                 z.getTags(),
                 z.getFilterMode().name(),
                 z.getFilterTags(),
-                currentPlaying(z.getId(), null));
+                currentPlaying(z.getId(), null),
+                searchMatch);
     }
+
+    private record ZoneSearchResult(
+            ZoneSummaryDTO summary, int rank, int position) {}
 
     private boolean positiveTag(Zone zone, String tag) {
         return zone.getTags().contains(tag)

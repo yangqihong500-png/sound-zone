@@ -1,0 +1,96 @@
+services:
+  mysql:
+    image: mysql:8.0
+    restart: unless-stopped
+    environment:
+      TZ: Asia/Shanghai
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?set MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-soundzone}
+      MYSQL_USER: ${MYSQL_USER:-soundzone}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:?set MYSQL_PASSWORD}
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p$$MYSQL_ROOT_PASSWORD --silent"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+    networks:
+      - backend
+
+  migrate:
+    image: mysql:8.0
+    restart: "no"
+    depends_on:
+      mysql:
+        condition: service_healthy
+    environment:
+      MYSQL_HOST: mysql
+      MYSQL_PORT: 3306
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-soundzone}
+      MYSQL_USER: ${MYSQL_USER:-soundzone}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:?set MYSQL_PASSWORD}
+    volumes:
+      - ./server/sql:/sql:ro
+      - ./deploy/run-migrations.sh:/migrations/run.sh:ro
+      - ./backups:/backups
+    command: ["sh", "/migrations/run.sh"]
+    networks:
+      - backend
+
+  server:
+    build:
+      context: ./server
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    environment:
+      PORT: 8080
+      DATABASE_URL: jdbc:mysql://mysql:3306/${MYSQL_DATABASE:-soundzone}?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true
+      DATABASE_USERNAME: ${MYSQL_USER:-soundzone}
+      DATABASE_PASSWORD: ${MYSQL_PASSWORD:?set MYSQL_PASSWORD}
+      SOUNDZONE_ALLOWED_ORIGINS: ${PUBLIC_ORIGIN:?set PUBLIC_ORIGIN}
+      SOUNDZONE_GUEST_ENABLED: ${SOUNDZONE_GUEST_ENABLED:-true}
+      SOUNDZONE_DEMO_DATA_ENABLED: ${SOUNDZONE_DEMO_DATA_ENABLED:-true}
+      SOUNDZONE_ADMIN_KEY: ${SOUNDZONE_ADMIN_KEY:?set SOUNDZONE_ADMIN_KEY}
+      SOUNDZONE_IMAGE_DIRECTORY: /data/images
+      SOUNDZONE_AUDIO_DIRECTORY: /data/audio
+      SOUNDZONE_AUDIUS_ENABLED: ${SOUNDZONE_AUDIUS_ENABLED:-true}
+      SOUNDZONE_AUDIUS_API_KEY: ${SOUNDZONE_AUDIUS_API_KEY:-}
+      SOUNDZONE_AUDIUS_BEARER_TOKEN: ${SOUNDZONE_AUDIUS_BEARER_TOKEN:-}
+    volumes:
+      - ./data/images:/data/images
+      - ./data/audio:/data/audio
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "--silent", "http://127.0.0.1:8080/api/actuator/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 18
+      start_period: 30s
+    networks:
+      - backend
+
+  web:
+    build:
+      context: ./app
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    depends_on:
+      server:
+        condition: service_healthy
+    ports:
+      - "${HTTP_PORT:-80}:80"
+    networks:
+      - backend
+
+volumes:
+  mysql_data:
+
+networks:
+  backend:
+    driver: bridge

@@ -5,6 +5,7 @@ import com.soundzone.queue.entity.QueueStatus;
 
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -33,6 +34,17 @@ public interface QueueItemRepository extends JpaRepository<QueueItem, Long> {
     List<QueueItem> findByRequesterIdOrderByCreatedAtDescIdDesc(Long userId);
 
     List<QueueItem> findByZoneIdAndStatusIn(Long zoneId, List<QueueStatus> statuses);
+
+    /** 首页按歌曲搜索：一次读取候选公开域内仍可收听的当前／待播／预存条目。 */
+    @Query(
+            """
+            select q from QueueItem q join fetch q.track
+            where q.zone.id in :zoneIds and q.status in :statuses
+            order by q.zone.id asc, q.createdAt asc, q.id asc
+            """)
+    List<QueueItem> findSearchableByZoneIds(
+            @Param("zoneIds") List<Long> zoneIds,
+            @Param("statuses") List<QueueStatus> statuses);
 
     List<QueueItem> findByStartedAtGreaterThanEqualAndStartedAtLessThan(
             LocalDateTime start, LocalDateTime end);

@@ -1,0 +1,6 @@
+node_modules/
+dist/
+unpackage/
+design-previews/
+*.log
+.DS_Store

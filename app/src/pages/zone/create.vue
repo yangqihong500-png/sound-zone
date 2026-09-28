@@ -21,6 +21,78 @@
         </view>
       </view>
 
+      <!-- 快速创建的第二个必填项：恰好三首初始歌曲，按点选顺序进入 FIFO。 -->
+      <view v-if="!editId" class="section">
+        <text class="section__label">Starter playlist <text class="section__sub">· choose 3 tracks</text></text>
+        <input v-model="trackKeyword" class="field__input track-search" placeholder="Search tracks..." @input="loadTracks" />
+        <text class="field__hint">Tracks play in selection order. Each track must be no longer than 10 minutes.</text>
+        <view v-if="selectedTracks.length" class="selected-tracks">
+          <text class="track-list__label">Selected tracks · play order</text>
+          <view class="track-list track-list--selected">
+            <view
+              v-for="(track, index) in selectedTracks"
+              :key="track.id"
+              class="track-row track-row--selected"
+              :class="{ 'track-row--conflict': isTrackBlocked(track) }"
+              @click="toggleTrack(track)"
+            >
+              <view class="track-row__cover" :style="{ backgroundColor: track.coverColor || '#A8B8C8' }">
+                <image v-if="track.coverUrl" class="track-row__cover-image" :src="track.coverUrl" mode="aspectFill" />
+                <text v-else class="track-row__note">♪</text>
+              </view>
+              <view class="track-row__info">
+                <text class="track-row__title">{{ track.title }}</text>
+                <text class="track-row__artist">{{ track.artist }}</text>
+                <text class="track-row__duration">{{ formatDuration(track.durationSec) }}<text v-if="isTrackBlocked(track)"> · blocked by filter</text></text>
+              </view>
+              <view class="track-row__order">
+                <text>{{ index + 1 }}</text>
+                <text class="track-row__remove">×</text>
+              </view>
+            </view>
+          </view>
+        </view>
+        <text v-if="selectedTracks.length" class="track-list__label track-list__label--results">Search results</text>
+        <scroll-view
+          v-if="availableSeedTracks.length"
+          class="track-list track-list--results"
+          :style="{ height: resultsListHeight + 'rpx' }"
+          scroll-y
+          enhanced
+          :show-scrollbar="false"
+        >
+          <view
+            v-for="track in availableSeedTracks"
+            :key="track.id"
+            class="track-row"
+            @click="toggleTrack(track)"
+          >
+            <view class="track-row__cover" :style="{ backgroundColor: track.coverColor || '#A8B8C8' }">
+              <image v-if="track.coverUrl" class="track-row__cover-image" :src="track.coverUrl" mode="aspectFill" />
+              <text v-else class="track-row__note">♪</text>
+            </view>
+            <view class="track-row__info">
+              <text class="track-row__title">{{ track.title }}</text>
+              <text class="track-row__artist">{{ track.artist }}</text>
+              <text class="track-row__duration">{{ formatDuration(track.durationSec) }}</text>
+            </view>
+            <text class="track-row__add">＋</text>
+          </view>
+        </scroll-view>
+        <text v-else class="track-list__empty">No matching tracks</text>
+        <text class="field__hint">{{ form.trackIds.length }}/3 selected</text>
+        <text v-if="blockedTracks.length" class="field__hint field__hint--error">{{ blockedTracks.length }} selected track(s) conflict with this filter. Remove them or change the filter before creating.</text>
+      </view>
+
+      <view v-if="!editId" class="advanced-toggle" @click="advancedOpen = !advancedOpen">
+        <view>
+          <text class="section__label">More settings</text>
+          <text class="section__sub">Scene, music filter and privacy</text>
+        </view>
+        <text class="advanced-toggle__icon">{{ advancedOpen ? '−' : '+' }}</text>
+      </view>
+
+      <view v-if="editId || advancedOpen" class="advanced-panel">
       <!-- 场景选择（归入分发场景） -->
       <view class="section">
         <text class="section__label">Choose a scene</text>
@@ -35,28 +107,33 @@
         </view>
       </view>
 
-      <!-- 音乐过滤：先选模式，再从五类主题标签中选同一组过滤标签 -->
+      <!-- 音乐过滤：默认不限制；启用过滤后再选标签。 -->
       <view class="section">
         <text class="section__label">Music filters</text>
         <view class="mode-switch">
           <view
             class="mode-switch__option"
+            :class="{ 'mode-switch__option--active': form.filterMode === 'NONE' }"
+            @click="selectFilterMode('NONE')"
+          >No filter</view>
+          <view
+            class="mode-switch__option"
             :class="{ 'mode-switch__option--active': form.filterMode === 'BAN' }"
-            @click="!editId && (form.filterMode = 'BAN')"
-          >Ban tagged songs</view>
+            @click="selectFilterMode('BAN')"
+          >Ban tags</view>
           <view
             class="mode-switch__option"
             :class="{ 'mode-switch__option--active': form.filterMode === 'ALLOW' }"
-            @click="!editId && (form.filterMode = 'ALLOW')"
-          >Only allow tagged</view>
+            @click="selectFilterMode('ALLOW')"
+          >Allow tags</view>
         </view>
         <text v-if="editId" class="field__hint">The music filter cannot be changed after creation.</text>
-        <text v-else class="field__hint">Choose a filter mode, then select at least one tag below.</text>
+        <text v-else class="field__hint">No filter is the default. Ban and Allow require at least one tag.</text>
       </view>
 
-      <view class="section">
+      <view v-if="form.filterMode !== 'NONE'" class="section">
         <text class="section__label">Theme tags</text>
-        <text class="field__hint">{{ form.filterMode === 'BAN' ? 'Songs with any selected tag will be blocked.' : form.filterMode === 'ALLOW' ? 'Only songs with a selected tag can play.' : 'Choose a music filter mode first.' }}</text>
+        <text class="field__hint">{{ form.filterMode === 'BAN' ? 'Songs with any selected tag will be blocked.' : 'Only songs with a selected tag can play.' }}</text>
         <view v-for="category in tagCategories" :key="category" class="tag-group">
           <text class="tag-group__name">{{ categoryLabel(category) }}</text>
           <view class="capsules">
@@ -64,7 +141,7 @@
               v-for="tag in (tagCatalog[category] || [])"
               :key="tag"
               class="capsule"
-              :class="{ 'capsule--active': form.filterTags.includes(tag), 'capsule--disabled': !form.filterMode || editId }"
+              :class="{ 'capsule--active': form.filterTags.includes(tag), 'capsule--disabled': editId }"
               @click="toggleFilterTag(tag)"
             >{{ tagLabel(tag) }}</view>
           </view>
@@ -75,7 +152,7 @@
       <view v-if="!editId" class="section">
         <view class="privacy-row">
           <view><text class="section__label">Private Zone</text><text class="section__sub">Invite only access</text></view>
-          <switch :checked="form.visibility === 'PRIVATE'" @change="onPrivacyChange" color="#8c9bab" />
+          <switch :checked="form.visibility === 'PRIVATE'" @change="onPrivacyChange" color="#3B6EA8" />
         </view>
         <view v-if="form.visibility === 'PRIVATE'" class="field">
           <view class="field__line">
@@ -90,31 +167,6 @@
           <text class="field__hint">An invite link will be generated after creation.</text>
         </view>
       </view>
-
-      <!-- 初始歌单（建域门槛：≥3 首，docs/02 第 1 步） -->
-      <view v-if="!editId" class="section">
-        <text class="section__label">Starter playlist <text class="section__sub">· at least 3 tracks</text></text>
-        <input v-model="trackKeyword" class="field__input track-search" placeholder="Search tracks..." @input="loadTracks" />
-        <text class="field__hint">Tracks play in selection order. Choose at least three tracks, each no longer than 10 minutes.</text>
-        <view v-if="selectedTracks.length" class="selected-tracks">
-          <text class="tag-group__name">Selected tracks · tap to remove</text>
-          <view class="capsules">
-            <view v-for="t in selectedTracks" :key="t.id" class="capsule capsule--active" :class="{ 'capsule--conflict': isTrackBlocked(t) }" @click="toggleTrack(t)">
-              {{ t.title }} · {{ t.artist }} · {{ formatDuration(t.durationSec) }}<text v-if="isTrackBlocked(t)"> · blocked</text>
-            </view>
-          </view>
-        </view>
-        <view class="capsules">
-          <view
-            v-for="t in seedTracks"
-            :key="t.id"
-            class="capsule"
-            :class="{ 'capsule--active': form.trackIds.includes(t.id), 'capsule--conflict': form.trackIds.includes(t.id) && isTrackBlocked(t) }"
-            @click="toggleTrack(t)"
-          >{{ t.title }} · {{ t.artist }} · {{ formatDuration(t.durationSec) }}</view>
-        </view>
-        <text class="field__hint">{{ form.trackIds.length }} selected</text>
-        <text v-if="blockedTracks.length" class="field__hint field__hint--error">{{ blockedTracks.length }} selected track(s) conflict with this filter. Remove them or change the filter before creating.</text>
       </view>
 
       <view class="bottom-spacer" />
@@ -135,18 +187,20 @@
 <script setup>
 /**
  * 创建域页 v2：2026-09-24 决议 D2/D5/D9
- * 结构：主题输入 → 场景 → 过滤双模式 → 五类主题标签 → 私密设置 → 创建按钮
- * 初始歌单至少三首，按点选顺序入队；域主可复用本页修改域信息
+ * 快速创建：域名 + 恰好三首歌曲；场景、标签过滤与隐私收进 More settings。
+ * 初始歌曲按点选顺序入队；域主可复用本页修改域信息。
  */
 import { ref, computed, reactive } from 'vue'
 import { onLoad } from '@dcloudio/uni-app'
 import { SCENES, getTagCatalog, createZone, updateZone, getZoneDetail, searchTracks } from '@/api/mock.js'
+import { finishCreateFromTab } from '@/services/create-entry.js'
 
 const statusBarHeight = ref(uni.getSystemInfoSync().statusBarHeight || 20)
 
 const tagCatalog = ref({})
 const editId = ref(null)
 const submitting = ref(false)
+const advancedOpen = ref(false)
 const trackKeyword = ref('')
 let searchVersion = 0
 const sceneOptions = SCENES.filter((s) => s !== '全部')
@@ -178,6 +232,7 @@ onLoad(async (options) => {
     tagCatalog.value = await getTagCatalog()
     if (options.id) {
       editId.value = Number(options.id)
+      advancedOpen.value = true
       const zone = await getZoneDetail(editId.value)
       Object.assign(form, { name: zone.name, scene: zone.scene, filterMode: zone.filterMode, filterTags: [...(zone.filterTags || [])], visibility: zone.visibility })
     } else await loadTracks()
@@ -193,8 +248,8 @@ async function loadTracks() {
 
 const form = reactive({
   name: '',
-  scene: '',
-  filterMode: '',
+  scene: '音乐',
+  filterMode: 'NONE',
   filterTags: [],
   visibility: 'PUBLIC',
   password: '',
@@ -202,18 +257,27 @@ const form = reactive({
 })
 
 const blockedTracks = computed(() => selectedTracks.value.filter(isTrackBlocked))
+const availableSeedTracks = computed(() => seedTracks.value.filter((track) => !form.trackIds.includes(track.id)))
+const resultsListHeight = computed(() => Math.min(availableSeedTracks.value.length * 144, 520))
+const filterReady = computed(() => form.filterMode === 'NONE' || form.filterTags.length > 0)
 const canCreate = computed(() =>
-  form.name.trim().length > 0 && form.scene && (editId.value || (form.filterMode && form.filterTags.length > 0 && form.trackIds.length >= 3 && blockedTracks.value.length === 0))
+  form.name.trim().length > 0 && form.scene && (editId.value || (filterReady.value && form.trackIds.length === 3 && blockedTracks.value.length === 0))
 )
 
+function selectFilterMode(mode) {
+  if (editId.value) return
+  form.filterMode = mode
+  if (mode === 'NONE') form.filterTags.splice(0)
+}
+
 function toggleFilterTag(tag) {
-  if (editId.value || !form.filterMode) return
+  if (editId.value || form.filterMode === 'NONE') return
   const i = form.filterTags.indexOf(tag)
   i >= 0 ? form.filterTags.splice(i, 1) : form.filterTags.push(tag)
 }
 
 function isTrackBlocked(track) {
-  if (!form.filterMode || !form.filterTags.length) return false
+  if (form.filterMode === 'NONE' || !form.filterTags.length) return false
   const hit = (track.tags || []).some((tag) => form.filterTags.includes(tag))
   return form.filterMode === 'BAN' ? hit : !hit
 }
@@ -224,6 +288,10 @@ function toggleTrack(track) {
     form.trackIds.splice(i, 1)
     selectedTracks.value.splice(i, 1)
   } else {
+    if (form.trackIds.length >= 3) {
+      uni.showToast({ title: 'Choose exactly 3 tracks', icon: 'none' })
+      return
+    }
     form.trackIds.push(track.id)
     selectedTracks.value.push(track)
   }
@@ -236,7 +304,7 @@ function onPrivacyChange(e) {
 async function onCreate() {
   if (submitting.value) return
   if (!canCreate.value) {
-    uni.showToast({ title: 'Name a scene and choose 3 tracks', icon: 'none' })
+    uni.showToast({ title: 'Name your zone and choose 3 tracks', icon: 'none' })
     return
   }
   submitting.value = true
@@ -256,14 +324,27 @@ async function onCreate() {
       trackIds: form.trackIds,
     })
     uni.showToast({ title: 'Zone created', icon: 'success' })
-    uni.redirectTo({ url: `/pages/zone/detail?id=${zone.id}` })
+    finishCreateFromTab()
+    uni.redirectTo({ url: `/pages/zone/detail?id=${zone.id}&returnHome=1` })
   } catch (e) {
     uni.showToast({ title: e.message || 'Could not create zone', icon: 'none' })
   } finally { submitting.value = false }
 }
 
 function goBack() {
-  uni.navigateBack()
+  if (editId.value) {
+    uni.navigateBack({ fail: goHome })
+    return
+  }
+  finishCreateFromTab()
+  goHome()
+}
+
+function goHome() {
+  uni.switchTab({
+    url: '/pages/index/index',
+    fail: () => uni.reLaunch({ url: '/pages/index/index' }),
+  })
 }
 </script>
 
@@ -290,8 +371,9 @@ function goBack() {
   padding-bottom: 24rpx;
   padding-left: 40rpx;
   padding-right: 40rpx;
-  background: rgba(255,255,255,.52);
-  backdrop-filter: blur(28px);
+  background: $sz-glass-bg;
+  border-bottom: 1rpx solid rgba(59,110,168,.1);
+  backdrop-filter: blur(28px) saturate(120%);
 
   &__back {
     font-size: 56rpx;
@@ -310,7 +392,7 @@ function goBack() {
   margin-top: 34rpx;
 
   &__line {
-    border-bottom: 2rpx solid rgba(0, 0, 0, 0.15);
+    border-bottom: 2rpx solid $sz-primary-border;
     padding: 20rpx 4rpx;
   }
 
@@ -345,6 +427,30 @@ function goBack() {
   &__sub { display: block; font-size: 22rpx; color: $sz-text-tertiary; font-weight: 400; }
 }
 
+.advanced-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 44rpx;
+  padding: 24rpx 4rpx;
+  border-top: 1rpx solid rgba(0, 0, 0, 0.08);
+  border-bottom: 1rpx solid rgba(0, 0, 0, 0.08);
+
+  .section__label { margin-bottom: 4rpx; }
+
+  &__icon {
+    width: 52rpx;
+    text-align: center;
+    font-size: 38rpx;
+    line-height: 1;
+    color: $sz-primary;
+  }
+}
+
+.advanced-panel {
+  padding-bottom: 4rpx;
+}
+
 .tag-group {
   margin: 0 0 25rpx;
 
@@ -374,16 +480,16 @@ function goBack() {
   border: 1rpx solid transparent;
 
   &--active {
-    background-color: rgba(168,184,200,.3);
-    color: $sz-text;
-    border-color: rgba(168,184,200,.6);
+    background-color: $sz-primary-soft;
+    color: $sz-primary;
+    border-color: $sz-primary-border;
   }
   &--disabled { opacity: .58; }
   &--conflict { border-color: #bd7777; color: #8f4444; }
   &__icon { margin-right: 7rpx; font-size: 25rpx; }
 }
 
-/* 过滤双模式切换：极简分段控件 */
+/* 过滤模式切换：极简分段控件 */
 .mode-switch {
   display: flex;
   gap: 0;
@@ -401,7 +507,7 @@ function goBack() {
 
     &--active {
       background-color: #fff;
-      color: $sz-text;
+      color: $sz-primary;
       box-shadow: 0 3rpx 8rpx rgba(0,0,0,.06);
     }
   }
@@ -419,8 +525,9 @@ function goBack() {
 
 .create-bar {
   padding: 24rpx 40rpx calc(24rpx + env(safe-area-inset-bottom));
-  background: rgba(255,255,255,.52);
-  backdrop-filter: blur(28px);
+  background: rgba(255,255,255,.86);
+  border-top: 1rpx solid rgba(59,110,168,.1);
+  backdrop-filter: blur(28px) saturate(120%);
 
   &__btn {
     font-size: 28rpx;
@@ -436,14 +543,144 @@ function goBack() {
     &--ready {
       background-color: $sz-primary;
       color: #ffffff;
-      font-weight: 500;
+      font-weight: 600;
+      box-shadow: 0 16rpx 34rpx rgba(59,110,168,.24), inset 0 1rpx 0 rgba(255,255,255,.22);
     }
   }
 }
 .track-search {
-  border-bottom: 1rpx solid rgba(0,0,0,.15);
+  border-bottom: 1rpx solid $sz-primary-border;
   padding: 16rpx 4rpx;
   margin-bottom: 10rpx;
 }
-.selected-tracks { margin: 22rpx 0; }
+.selected-tracks { margin-top: 24rpx; }
+
+.track-list {
+  margin-top: 10rpx;
+
+  &--results {
+    max-height: 520rpx;
+    overscroll-behavior: contain;
+  }
+
+  &--selected {
+    background: $sz-primary-soft;
+    border-radius: 24rpx;
+    padding: 0 16rpx;
+  }
+
+  &__label {
+    display: block;
+    font-size: 21rpx;
+    font-weight: 500;
+    color: $sz-text-secondary;
+    margin-bottom: 4rpx;
+
+    &--results { margin-top: 28rpx; }
+  }
+
+  &__empty {
+    display: block;
+    padding: 36rpx 0;
+    text-align: center;
+    font-size: 22rpx;
+    color: $sz-text-tertiary;
+  }
+}
+
+.track-row {
+  display: flex;
+  align-items: center;
+  gap: 18rpx;
+  min-height: 112rpx;
+  padding: 16rpx 4rpx;
+  border-bottom: 1rpx solid rgba(0,0,0,.07);
+
+  &:last-child { border-bottom: 0; }
+
+  &--selected .track-row__title { color: $sz-text; }
+  &--conflict .track-row__duration { color: #9f5555; }
+
+  &__cover {
+    width: 92rpx;
+    height: 92rpx;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    border-radius: 18rpx;
+    background: linear-gradient(145deg, #A8B8C8, #C3B8D9);
+  }
+
+  &__cover-image { width: 100%; height: 100%; }
+  &__note { color: rgba(255,255,255,.88); font-size: 34rpx; }
+
+  &__info {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2rpx;
+  }
+
+  &__title,
+  &__artist,
+  &__duration {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  &__title { font-size: 25rpx; font-weight: 600; color: $sz-text; }
+  &__artist { font-size: 22rpx; color: $sz-text-secondary; }
+  &__duration { font-size: 19rpx; color: $sz-text-tertiary; }
+
+  &__add {
+    width: 52rpx;
+    height: 52rpx;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    background: $sz-primary;
+    color: #ffffff;
+    border: 1rpx solid rgba(255,255,255,.7);
+    box-shadow: 0 8rpx 20rpx rgba(59,110,168,.2);
+    font-size: 28rpx;
+  }
+
+  &__order {
+    width: 52rpx;
+    height: 52rpx;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    border-radius: 50%;
+    background: $sz-primary-muted;
+    color: $sz-primary;
+    font-size: 21rpx;
+    font-weight: 600;
+  }
+
+  &__remove {
+    position: absolute;
+    right: -8rpx;
+    bottom: -8rpx;
+    width: 28rpx;
+    height: 28rpx;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    background: #fff;
+    color: $sz-text-secondary;
+    font-size: 20rpx;
+    box-shadow: 0 2rpx 8rpx rgba(0,0,0,.1);
+  }
+}
 </style>

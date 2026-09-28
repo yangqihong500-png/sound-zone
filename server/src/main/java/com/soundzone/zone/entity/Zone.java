@@ -60,7 +60,7 @@ public class Zone {
     @Column(nullable = false)
     private long stateVersion = 0;
 
-    /** 演示环境常驻域：保持活跃并循环预置歌单；普通用户域始终为 false。 */
+    /** 演示环境常驻域：由演示成员保活并循环预置歌单；成员数归零时仍结束。 */
     @Column(nullable = false)
     private boolean demoResident = false;
 
@@ -71,10 +71,10 @@ public class Zone {
     @Column(length = 32)
     private String inviteCode;
 
-    /** 标签过滤模式：BAN=禁止含 / ALLOW=仅允许含（决议 D5） */
+    /** 标签过滤模式：NONE=不限制 / BAN=禁止含 / ALLOW=仅允许含 */
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 16)
-    private FilterMode filterMode = FilterMode.BAN;
+    private FilterMode filterMode = FilterMode.NONE;
 
     /** 域风格标签（展示用，由域主勾选） */
     @ElementCollection(fetch = FetchType.EAGER)
@@ -82,7 +82,7 @@ public class Zone {
     @Column(name = "tag", length = 32)
     private Set<String> tags = new HashSet<>();
 
-    /** 过滤标签集合： filterMode=BAN 时为黑名单（命中拒绝）； filterMode=ALLOW 时为白名单（不含拒绝） */
+    /** 过滤标签集合：NONE 时为空；BAN 时为黑名单；ALLOW 时为白名单。 */
     @ElementCollection(fetch = FetchType.EAGER)
     @CollectionTable(name = "sz_zone_filter_tags", joinColumns = @JoinColumn(name = "zone_id"))
     @Column(name = "tag", length = 32)
@@ -95,6 +95,6 @@ public class Zone {
     @Column(nullable = false, updatable = false)
     private LocalDateTime createdAt = LocalDateTime.now();
 
-    /** 结束时间（全员退出自动消失或手动结束） */
+    /** 结束时间（全员退出后自动结束） */
     private LocalDateTime endedAt;
 }

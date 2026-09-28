@@ -82,9 +82,9 @@ async function onLike() {
     width: 70rpx; height: 70rpx; border-radius: 18rpx; flex-shrink: 0;
     overflow: hidden;
     display: flex; align-items: center; justify-content: center;
-    background: linear-gradient(140deg, #a8b8c8, #c3b8d9);
+    background: linear-gradient(140deg, #3b6ea8, #8fb0d2);
     color: rgba(255,255,255,.9); font-size: 26rpx;
-    &--playing { box-shadow: 0 0 0 2rpx rgba(168,184,200,.5); }
+    &--playing { box-shadow: 0 0 0 2rpx $sz-primary-border; }
   }
   &__cover-image { width: 100%; height: 100%; }
 

@@ -1,6 +1,6 @@
 -- ============================================================================
 -- 同频 SoundZone · MySQL 8 表结构
--- 说明：新库基线（20 张业务表）。旧库必须执行 migrations/V001__core_closure.sql。
+-- 说明：新库基线（21 张业务表）。旧库必须按顺序执行 migrations 下的版本脚本。
 --       JPA 字段初值与数据库 DEFAULT 分开维护，启动使用 ddl-auto=validate。
 --
 -- 使用：空库执行本脚本；已有库执行版本化迁移，不要重建业务表。
@@ -71,7 +71,7 @@ CREATE TABLE IF NOT EXISTS sz_zone (
   visibility     VARCHAR(16) NOT NULL DEFAULT 'PUBLIC',   -- PUBLIC / PRIVATE
   password       VARCHAR(32) DEFAULT NULL,
   invite_code    VARCHAR(32) DEFAULT NULL,
-  filter_mode    VARCHAR(16) NOT NULL DEFAULT 'BAN',      -- BAN / ALLOW
+  filter_mode    VARCHAR(16) NOT NULL DEFAULT 'BAN',      -- NONE / BAN / ALLOW；应用快速创建默认 NONE，保留数据库旧默认便于兼容
   listener_count INT         NOT NULL DEFAULT 0,
   created_at     DATETIME(6) NOT NULL,
   ended_at       DATETIME(6) DEFAULT NULL,
@@ -87,7 +87,7 @@ CREATE TABLE IF NOT EXISTS sz_zone_tags (
   CONSTRAINT fk_zone_tags_zone FOREIGN KEY (zone_id) REFERENCES sz_zone (id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
--- 域过滤标签（Zone.filterTags：BAN 黑名单 / ALLOW 白名单）
+-- 域过滤标签（Zone.filterTags：NONE 为空 / BAN 黑名单 / ALLOW 白名单）
 CREATE TABLE IF NOT EXISTS sz_zone_filter_tags (
   zone_id BIGINT      NOT NULL,
   tag     VARCHAR(32) NOT NULL,
@@ -215,6 +215,22 @@ CREATE TABLE IF NOT EXISTS sz_follow (
   UNIQUE KEY uk_follow (follower_id, followee_id),
   CONSTRAINT fk_follow_follower FOREIGN KEY (follower_id) REFERENCES sz_user (id),
   CONSTRAINT fk_follow_followee FOREIGN KEY (followee_id) REFERENCES sz_user (id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- ----------------------------------------------------------------------------
+-- 10. 一对一私信——仅存在关注关系的双方可继续发送
+-- ----------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS sz_direct_message (
+  id           BIGINT       NOT NULL AUTO_INCREMENT,
+  sender_id    BIGINT       NOT NULL,
+  recipient_id BIGINT       NOT NULL,
+  body         VARCHAR(500) NOT NULL,
+  created_at   DATETIME(6)  NOT NULL,
+  PRIMARY KEY (id),
+  KEY idx_message_sender_recipient (sender_id,recipient_id,created_at,id),
+  KEY idx_message_recipient_sender (recipient_id,sender_id,created_at,id),
+  CONSTRAINT fk_message_sender FOREIGN KEY(sender_id) REFERENCES sz_user(id),
+  CONSTRAINT fk_message_recipient FOREIGN KEY(recipient_id) REFERENCES sz_user(id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- 新增：会话、互动当前状态、举报、业务事件及训练导出追踪

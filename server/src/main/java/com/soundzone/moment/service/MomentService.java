@@ -66,7 +66,7 @@ public class MomentService {
         zone.setLastActivityAt(m.getCreatedAt());
         playback.changed(zone);
         activity.record(userId, zoneId, item.getId(), "IMAGE", 0);
-        return MomentDTO.from(m, null);
+        return MomentDTO.from(m, null, 0);
     }
 
     public List<MomentDTO> feed(Long zoneId, Long userId) {
@@ -89,8 +89,24 @@ public class MomentService {
                                         reactions
                                                 .findByUserIdAndMomentId(userId, m.getId())
                                                 .map(MomentReaction::getType)
-                                                .orElse(null)))
+                                                .orElse(null),
+                                        reactions.countByMomentIdAndType(m.getId(), "HEART")))
                 .toList();
+    }
+
+    public MomentDTO detail(Long id, Long userId) {
+        var moment = get(id);
+        access.member(moment.getZone().getId(), userId);
+        if (moment.getStatus() != MomentStatus.NORMAL
+                || moment.getModerationStatus() == ModerationStatus.REJECTED)
+            throw new BizException(ResultCode.MOMENT_NOT_FOUND);
+        return MomentDTO.from(
+                moment,
+                reactions
+                        .findByUserIdAndMomentId(userId, moment.getId())
+                        .map(MomentReaction::getType)
+                        .orElse(null),
+                reactions.countByMomentIdAndType(moment.getId(), "HEART"));
     }
 
     public void withdraw(Long zoneId, Long id, Long userId) {
@@ -105,7 +121,7 @@ public class MomentService {
         playback.changed(zone); // 训练候选查询实时排除此记录；不物理删除审计记录
     }
 
-    public String react(Long zoneId, Long id, Long userId, String type) {
+    public MomentReactionDTO react(Long zoneId, Long id, Long userId, String type) {
         var zone = access.lock(zoneId);
         var m = get(id);
         if (!m.getZone().getId().equals(zoneId)) throw new BizException(ResultCode.FORBIDDEN);
@@ -131,7 +147,7 @@ public class MomentService {
                     0);
         }
         playback.changed(zone);
-        return type;
+        return new MomentReactionDTO(type, reactions.countByMomentIdAndType(id, "HEART"));
     }
 
     public Path image(Long id, Long userId) {
@@ -149,7 +165,12 @@ public class MomentService {
     public List<MomentDTO> mine(Long userId) {
         return moments.findByUserIdOrderByCreatedAtDesc(userId).stream()
                 .filter(m -> m.getStatus() == MomentStatus.NORMAL)
-                .map(m -> MomentDTO.from(m, null))
+                .map(
+                        m ->
+                                MomentDTO.from(
+                                        m,
+                                        null,
+                                        reactions.countByMomentIdAndType(m.getId(), "HEART")))
                 .toList();
     }
 

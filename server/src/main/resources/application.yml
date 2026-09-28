@@ -1,6 +1,6 @@
 # ===================== 服务基础 =====================
 server:
-  port: 8080
+  port: ${PORT:8080}
   servlet:
     # 统一 /api 前缀，与前端 api 层约定一致（app/src/api/mock.js）
     context-path: /api
@@ -17,10 +17,10 @@ spring:
   #   useSSL=false               → 本地开发关闭 SSL
   #   allowPublicKeyRetrieval    → MySQL 8 caching_sha2_password 非 SSL 连接所需
   datasource:
-    url: 'jdbc:mysql://127.0.0.1:3306/soundzone?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true'
+    url: '${DATABASE_URL:jdbc:mysql://127.0.0.1:3306/soundzone?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true}'
     driver-class-name: com.mysql.cj.jdbc.Driver
-    username: soundzone
-    password: soundzone123
+    username: ${DATABASE_USERNAME:soundzone}
+    password: ${DATABASE_PASSWORD:soundzone123}
     hikari:
       maximum-pool-size: 10
       minimum-idle: 2
@@ -45,6 +45,18 @@ spring:
 logging:
   level:
     com.soundzone: info
+
+# 仅公开健康检查；生产反向代理通过该端点判断新实例是否可接流量。
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      probes:
+        enabled: true
+      show-details: never
 
 # 业务默认值均可用环境变量覆盖；独立游客与 Audius 默认可用，Demo 图片即时展示。
 soundzone:

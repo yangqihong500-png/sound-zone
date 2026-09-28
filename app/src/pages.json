@@ -7,23 +7,14 @@
       "path": "pages/index/index",
       "style": {
         "navigationBarTitleText": "SoundZone",
-        "navigationBarBackgroundColor": "#F5F6F7",
-        "navigationBarTextStyle": "black"
-      }
-    },
-    {
-      "path": "pages/zone/list",
-      "style": {
-        "navigationBarTitleText": "Discover",
-        "navigationBarBackgroundColor": "#F5F6F7",
-        "navigationBarTextStyle": "black"
+        "navigationStyle": "custom"
       }
     },
     {
       "path": "pages/user/index",
       "style": {
         "navigationBarTitleText": "Profile",
-        "navigationBarBackgroundColor": "#F5F6F7",
+        "navigationBarBackgroundColor": "#F7F9FC",
         "navigationBarTextStyle": "black"
       }
     },
@@ -31,6 +22,13 @@
       "path": "pages/zone/detail",
       "style": {
         "navigationBarTitleText": "Zone",
+        "navigationStyle": "custom"
+      }
+    },
+    {
+      "path": "pages/zone/create-entry",
+      "style": {
+        "navigationBarTitleText": "Create Zone",
         "navigationStyle": "custom"
       }
     },
@@ -49,6 +47,13 @@
       }
     },
     {
+      "path": "pages/zone/moment-detail",
+      "style": {
+        "navigationBarTitleText": "Moment",
+        "navigationStyle": "custom"
+      }
+    },
+    {
       "path": "pages/user/home",
       "style": {
         "navigationBarTitleText": "Profile",
@@ -60,18 +65,25 @@
       "style": {
         "navigationBarTitleText": "My Library"
       }
+    },
+    {
+      "path": "pages/message/chat",
+      "style": {
+        "navigationBarTitleText": "Messages",
+        "navigationStyle": "custom"
+      }
     }
   ],
   "globalStyle": {
     "navigationBarTextStyle": "black",
     "navigationBarTitleText": "SoundZone",
-    "navigationBarBackgroundColor": "#F5F6F7",
-    "backgroundColor": "#F5F6F7"
+    "navigationBarBackgroundColor": "#F7F9FC",
+    "backgroundColor": "#F7F9FC"
   },
   "tabBar": {
     "color": "#999999",
-    "selectedColor": "#3a3a3c",
-    "backgroundColor": "#F5F6F7",
+    "selectedColor": "#3B6EA8",
+    "backgroundColor": "#FFFFFF",
     "borderStyle": "black",
     "list": [
       {
@@ -79,8 +91,8 @@
         "text": "Home"
       },
       {
-        "pagePath": "pages/zone/list",
-        "text": "Discover"
+        "pagePath": "pages/zone/create-entry",
+        "text": "＋"
       },
       {
         "pagePath": "pages/user/index",

@@ -51,7 +51,8 @@ public class PlaybackService {
             zone.setListenerCount(count);
             changed = true;
         }
-        if (count == 0 && !zone.isDemoResident()) {
+        // 所有域统一以实际成员数为生命周期依据；演示域由演示成员心跳保活，不保留空域例外。
+        if (count == 0) {
             closeLocked(zone);
             return;
         }

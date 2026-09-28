@@ -21,6 +21,7 @@ export const likeQueueItem = (itemId, active) => put(`/queue/${itemId}/like`, { 
 export const searchTracks = (keyword) => get('/tracks/search', { keyword: keyword || '' })
 export const getPlaybackSource = (zoneId, trackId) => get(`/tracks/${trackId}/playback`, { zoneId })
 export const getMomentFeed = (zoneId) => get(`/zones/${zoneId}/moments/feed`)
+export const getMoment = (id) => get(`/moments/${id}`)
 export const withdrawMoment = (zoneId, momentId) => del(`/moments/${momentId}`)
 export const reactMoment = (id, type) => put(`/moments/${id}/reaction`, { type })
 export const collectTrack = (zoneId, itemId, active) => put(`/zones/${zoneId}/collection`, { itemId, active })
@@ -30,6 +31,8 @@ export const getUserProfile = (userId) => get(`/users/${userId}/profile`)
 export const followUser = (id) => post(`/users/${id}/follow`)
 export const unfollowUser = (id) => del(`/users/${id}/follow`)
 export const getMyList = (kind) => get(`/users/me/${kind}`)
+export const getConversation = (userId) => get(`/messages/users/${userId}`)
+export const sendDirectMessage = (userId, body) => post(`/messages/users/${userId}`, { body })
 
 export async function uploadImage(zoneId, { filePath, queueItemId, trainingConsent }) {
   await ensureSession()

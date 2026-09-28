@@ -16,7 +16,7 @@
     <view v-else-if="error" class="state">
       <text class="state__icon">?</text>
       <text class="state__text">{{ error }}</text>
-      <button class="state__btn" @click="goBack">Back</button>
+      <button class="state__btn sz-btn-secondary" @click="goBack">Back</button>
     </view>
 
     <!-- 正常展示 -->
@@ -33,13 +33,15 @@
           </view>
           <text class="profile__slogan">someone is always listening with you</text>
         </view>
-        <!-- 非本人显示关注按钮（决议 D7：轻入口关注上传者） -->
-        <button
-          v-if="!isMe"
-          class="profile__follow"
-          :class="{ 'profile__follow--done': followed }"
-          @click="onFollow"
-        >{{ followed ? 'Following' : 'Follow' }}</button>
+        <!-- 非本人显示关注；已关注后开放私信入口。 -->
+        <view v-if="!isMe" class="profile__actions">
+          <button
+            class="profile__follow"
+            :class="{ 'profile__follow--done': followed }"
+            @click="onFollow"
+          >{{ followed ? 'Following' : 'Follow' }}</button>
+          <button v-if="followed" class="profile__message" @click="openChat">Message</button>
+        </view>
       </view>
 
       <view class="stats sz-card">
@@ -130,6 +132,10 @@ async function onFollow() {
 function goBack() {
   uni.navigateBack()
 }
+
+function openChat() {
+  uni.navigateTo({ url: `/pages/message/chat?userId=${user.value.id}` })
+}
 </script>
 
 <style lang="scss" scoped>
@@ -189,8 +195,9 @@ function goBack() {
 
   &__btn {
     font-size: $sz-font-base;
-    color: $sz-text;
-    background-color: rgba(0, 0, 0, 0.06);
+    color: $sz-primary;
+    background-color: $sz-primary-soft;
+    border: 1rpx solid $sz-primary-border;
     border-radius: 999rpx;
     padding: 8rpx 48rpx;
 
@@ -210,7 +217,7 @@ function goBack() {
   margin: 32rpx 0 24rpx;
   min-height: 330rpx;
   justify-content: center;
-  background: linear-gradient(135deg, rgba(168,184,200,.18), rgba(195,184,217,.18)), #fff;
+  background: linear-gradient(135deg, rgba(59,110,168,.14), rgba(255,255,255,.68)), #fff;
   border-radius: 48rpx;
   &__glow { position: absolute; top: 45rpx; width: 180rpx; height: 180rpx; border-radius: 50%; filter: blur(32rpx); opacity: .45; }
 
@@ -266,12 +273,18 @@ function goBack() {
     font-style: italic;
   }
 
-  &__follow {
+  &__actions {
     position: relative;
     margin-top: 20rpx;
+    display: flex;
+    align-items: center;
+    gap: 14rpx;
+  }
+
+  &__follow,
+  &__message {
+    margin: 0;
     font-size: $sz-font-sm;
-    color: #ffffff;
-    background-color: $sz-primary;
     border-radius: 999rpx;
     padding: 8rpx 32rpx;
     flex-shrink: 0;
@@ -280,11 +293,11 @@ function goBack() {
       border: none;
     }
 
-    &--done {
-      background-color: rgba(0, 0, 0, 0.1);
-      color: $sz-text-secondary;
-    }
   }
+
+  &__follow { color: #ffffff; background-color: $sz-primary; }
+  &__follow--done { background-color: $sz-primary-soft; color: $sz-primary; }
+  &__message { color: #ffffff; background-color: $sz-primary; }
 }
 
 .stats {

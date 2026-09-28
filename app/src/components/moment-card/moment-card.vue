@@ -1,5 +1,5 @@
 <template>
-  <!-- 图片分享卡片 v2：图片与歌曲关联 + 上传者 + 可撤回（本人） -->
+  <!-- 图片分享预览卡：图片与歌曲关联 + 上传者；管理操作只放在单条详情页 -->
   <view class="moment-card sz-card" :class="{ 'moment-card--compact': compact }">
     <image
       v-if="imagePath"
@@ -12,7 +12,6 @@
       <text v-if="moment.text && !compact" class="moment-card__text">{{ moment.text }}</text>
       <view class="moment-card__user" @click.stop="$emit('user', moment.userId)">
         <text class="moment-card__name">@{{ moment.by || moment.user }}</text>
-        <text v-if="own" class="moment-card__withdraw" @click.stop="$emit('withdraw', moment.id)">Withdraw</text>
       </view>
       <view class="moment-card__meta">
         <text class="moment-card__time">{{ moment.time }}</text>
@@ -31,18 +30,15 @@ import { loadImage } from '@/api/mock.js'
  *   - userId: 上传者 ID（点击跳转用户主页用）
  *   - by: 上传者名；time: 已格式化的 "HH:mm" 字符串（后端 DateTimeFormatter 处理）
  *   - 兼容旧 mock 字段：user / time(时间戳)
- * @prop {Boolean} own 是否本人分享（显示撤回按钮）
- * @emit withdraw(id) 撤回事件
  * @emit user(userId) 点击上传者（跳转用户主页）
  * 每条分享 = (场景, 图片, 关联歌曲) 三元组 —— 数据飞轮源头（docs/03）
  */
 const props = defineProps({
   moment: { type: Object, required: true },
-  own: { type: Boolean, default: false },
   compact: { type: Boolean, default: false },
 })
 
-defineEmits(['withdraw', 'user'])
+defineEmits(['user'])
 const imagePath = ref('')
 let generation = 0
 watch(() => props.moment.imageUrl, async (url) => {
@@ -85,12 +81,6 @@ onUnmounted(() => { generation++ })
     font-weight: 600;
     flex: 1;
   }
-  /* 撤回按钮：轻量不突出（决议 D6） */
-  &__withdraw {
-    font-size: $sz-font-xs;
-    color: $sz-text-tertiary;
-  }
-
   &__text {
     font-size: 24rpx;
     display: block;

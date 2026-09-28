@@ -31,7 +31,7 @@ import { ref, computed } from 'vue'
 import { onShow } from '@dcloudio/uni-app'
 import { getCurrentUser } from '@/api/mock.js'
 
-const user = ref({ name: 'Loading…', avatarColor: '#8c9bab', stats: { uploads: 0, likes: 0, moments: 0, following: 0 } })
+const user = ref({ name: 'Loading…', avatarColor: '#3b6ea8', stats: { uploads: 0, likes: 0, moments: 0, following: 0 } })
 const stats = computed(() => [
   { label: 'Uploads', value: formatStat(user.value.stats?.uploads) },
   { label: 'Likes', value: formatStat(user.value.stats?.likes) },
@@ -59,7 +59,7 @@ function onMenu(item) { uni.navigateTo({ url: '/pages/user/library?kind=' + item
 .profile-card {
   position: relative; overflow: hidden; min-height: 360rpx; border-radius: 48rpx;
   display: flex; flex-direction: column; align-items: center; justify-content: center;
-  background: linear-gradient(135deg, rgba(168,184,200,.18), rgba(195,184,217,.18)), #fff;
+  background: linear-gradient(135deg, rgba(59,110,168,.14), rgba(255,255,255,.68)), #fff;
   box-shadow: $sz-shadow-soft;
 }
 .profile-card__glow { position: absolute; top: 40rpx; width: 180rpx; height: 180rpx; border-radius: 50%; filter: blur(32rpx); opacity: .45; }

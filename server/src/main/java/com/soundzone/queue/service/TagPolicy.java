@@ -9,7 +9,7 @@ import org.springframework.stereotype.Service;
 
 import java.util.Set;
 
-/** 域级过滤按任一标签命中；新建域必须明确选择模式及至少一个标签。 */
+/** 域级过滤按任一标签命中；NONE 不过滤，BAN／ALLOW 创建时必须至少选择一个标签。 */
 @Service
 public class TagPolicy {
     public void validate(FilterMode mode, Set<String> tags, Set<String> displayTags) {
@@ -20,15 +20,18 @@ public class TagPolicy {
         }
         if (mode == FilterMode.ALLOW && tags.isEmpty())
             throw new BizException(ResultCode.PARAM_INVALID, "白名单至少选择一个标签");
+        if (mode == FilterMode.NONE && (!tags.isEmpty() || !displayTags.isEmpty()))
+            throw new BizException(ResultCode.PARAM_INVALID, "不限制模式不能选择过滤标签");
     }
 
     public void validateForCreation(FilterMode mode, Set<String> tags, Set<String> displayTags) {
         validate(mode, tags, displayTags);
-        if (tags.isEmpty())
+        if (mode != FilterMode.NONE && tags.isEmpty())
             throw new BizException(ResultCode.PARAM_INVALID, "请至少选择一个过滤标签");
     }
 
     public void check(Zone zone, Track track) {
+        if (zone.getFilterMode() == FilterMode.NONE) return;
         boolean hit = track.getTags().stream().anyMatch(zone.getFilterTags()::contains);
         if (zone.getFilterMode() == FilterMode.BAN && hit)
             throw new BizException(ResultCode.SONG_BANNED_BY_ZONE, track.getTitle());

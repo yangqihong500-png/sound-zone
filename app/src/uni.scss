@@ -1,15 +1,14 @@
 /**
- * uni.scss —— 全局设计令牌（Design Tokens）v2
- * 由框架自动注入每个组件的 <style lang="scss">，无需手动 import
- * 视觉规范：2026-09-24 第二次会议定稿（docs/01 视觉规范）
- * 日式简约 · 苹果风克制留白 · 黑白灰低饱和冷调 · 莫兰迪主题色 · 玻璃拟态
+ * uni.scss —— 全局设计令牌（Design Tokens）v3
+ * 由框架自动注入每个组件的 <style lang="scss">，无需手动 import。
+ * 视觉方向：V1 蓝白撞色 + H 柔和钢蓝；封面保持原色，品牌蓝仅用于操作与选中态。
  */
 
 /* ========== 基础色：黑白灰低饱和冷调 ========== */
-$sz-bg: #f5f6f7;              /* 页面底色：浅灰 */
+$sz-bg: #f7f9fc;              /* 页面底色：微冷白 */
 $sz-card: #ffffff;            /* 普通卡片 */
-$sz-glass-bg: rgba(255, 255, 255, 0.50);   /* 毛玻璃：仅用于悬浮操作层 */
-$sz-glass-border: rgba(255, 255, 255, 0.6);/* 玻璃卡片边缘高光 */
+$sz-glass-bg: rgba(255, 255, 255, 0.82);   /* 中性乳白玻璃，不与封面混色 */
+$sz-glass-border: rgba(255, 255, 255, 0.58);/* 玻璃卡片边缘高光 */
 
 /* ========== 文字 ========== */
 $sz-text: #1c1c1e;                       /* 主文字：黑 */
@@ -17,8 +16,11 @@ $sz-text-secondary: #4a4a4c;             /* 次级：深灰 */
 $sz-text-tertiary: rgba(0, 0, 0, 0.45);  /* 提示：半透明黑 */
 
 /* ========== 强调色 ========== */
-$sz-primary: #3a3a3c;         /* 炭灰：主操作按钮（高对比但不过饱和） */
-$sz-accent: #8c9bab;          /* 冷灰蓝：默认点缀 */
+$sz-primary: #3b6ea8;                         /* H 柔和钢蓝：实体主操作 */
+$sz-primary-soft: rgba(59, 110, 168, 0.12);  /* 选中底与轻提示 */
+$sz-primary-muted: rgba(59, 110, 168, 0.24); /* 次级选中态 */
+$sz-primary-border: rgba(59, 110, 168, 0.34);
+$sz-accent: #3b6ea8;                          /* 图标、链接与即时反馈 */
 
 /* ========== 莫兰迪主题色（按域主题，低饱和） ========== */
 $sz-morandi-study: #a8b8c8;   /* 学习域：浅灰蓝 */
@@ -45,5 +47,5 @@ $sz-gap-md: 24rpx;
 $sz-gap-lg: 32rpx;
 
 /* ========== 软阴影（极软） ========== */
-$sz-shadow-soft: 0 16rpx 48rpx rgba(0, 0, 0, 0.06);
-$sz-shadow-float: 0 24rpx 64rpx rgba(0, 0, 0, 0.10);
+$sz-shadow-soft: 0 16rpx 48rpx rgba(30, 55, 84, 0.08);
+$sz-shadow-float: 0 24rpx 64rpx rgba(30, 55, 84, 0.14);

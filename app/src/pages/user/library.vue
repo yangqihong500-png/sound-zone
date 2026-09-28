@@ -3,7 +3,13 @@
     <text v-if="loading" class="empty">Loading…</text>
     <text v-else-if="error" class="empty">{{ error }}</text>
     <template v-else>
-      <view v-for="entry in entries" :key="entry.id || entry.item?.itemId" class="sz-card row" @click="open(entry)">
+      <view
+        v-for="entry in entries"
+        :key="entry.id || entry.item?.itemId"
+        class="sz-card row"
+        :class="{ 'row--favorite': kind === 'collections', 'row--following': kind === 'following' }"
+        @click="open(entry)"
+      >
         <template v-if="kind === 'zones'">
           <text>{{ entry.name }}</text><text class="secondary">{{ sceneName(entry.scene) }} · {{ entry.status === 'ENDED' ? 'Ended' : 'Live' }} · {{ entry.visibility === 'PRIVATE' ? 'Private' : 'Public' }}</text>
         </template>
@@ -11,18 +17,37 @@
           <text>{{ entry.item.title }} · {{ entry.item.artist }}</text><text class="secondary">{{ entry.zoneName }} · {{ statusNames[entry.item.status] }}</text>
         </template>
         <template v-else-if="kind === 'following'">
-          <text>{{ entry.name }}</text><button class="small" @click.stop="unfollow(entry)">Unfollow</button>
+          <view class="following-user">
+            <view class="following-user__avatar" :style="{ backgroundColor: entry.avatarColor || '#3B6EA8' }">
+              <text class="following-user__initial">{{ userInitial(entry.name) }}</text>
+            </view>
+            <text class="following-user__name">{{ entry.name }}</text>
+          </view>
+          <view class="row__actions">
+            <button class="small small--message" @click.stop="openChat(entry.id)">Message</button>
+            <button class="small" @click.stop="unfollow(entry)">Unfollow</button>
+          </view>
         </template>
         <template v-else>
-          <text>{{ entry.title }} · {{ entry.artist }}</text><button class="small" @click.stop="uncollect(entry)">Remove</button>
+          <view class="favorite-track">
+            <view class="favorite-track__cover" :style="{ backgroundColor: entry.coverColor || '#A8B8C8' }">
+              <image v-if="entry.coverUrl" class="favorite-track__cover-image" :src="entry.coverUrl" mode="aspectFill" />
+              <text v-else class="favorite-track__note">♪</text>
+            </view>
+            <view class="favorite-track__copy">
+              <text class="favorite-track__title">{{ entry.title }}</text>
+              <text class="favorite-track__artist">{{ entry.artist }}</text>
+            </view>
+          </view>
+          <button class="small" @click.stop="uncollect(entry)">Remove</button>
         </template>
       </view>
       <text v-if="!entries.length" class="empty">Nothing here yet.</text>
       <template v-if="kind === 'uploads' && images.length">
         <view class="section-label">My Moments</view>
-        <view v-for="image in images" :key="image.id" class="image-entry">
+        <view v-for="image in images" :key="image.id" class="image-entry" @click="openMoment(image.id)">
           <text v-if="image.moderationStatus === 'REJECTED'" class="secondary">Unavailable</text>
-          <moment-card :moment="image" :own="true" @withdraw="withdraw" />
+          <moment-card :moment="image" @user="openMoment(image.id)" />
         </view>
       </template>
     </template>
@@ -31,7 +56,7 @@
 <script setup>
 import { ref } from 'vue'
 import { onLoad, onShow } from '@dcloudio/uni-app'
-import { getMyList, unfollowUser, removeCollection, withdrawMoment } from '@/api/mock.js'
+import { getMyList, unfollowUser, removeCollection } from '@/api/mock.js'
 import MomentCard from '@/components/moment-card/moment-card.vue'
 const kind = ref('zones')
 const entries = ref([])
@@ -42,6 +67,7 @@ const names = { zones: 'My Zones', uploads: 'My Uploads', following: 'Following'
 const statusNames = { PLAYING: 'Playing', QUEUED: 'Queued', PRESET: 'Preloaded', PLAYED: 'Played', STOPPED: 'Zone ended', REMOVED: 'History' }
 const scenes = { 音乐: 'Music', 自习: 'Study', 健身: 'Fitness', 旅行: 'Travel', 日系: 'J-Pop', 电子: 'Electronic', 工作: 'Work', 手工: 'Craft', 深夜: 'Late Night' }
 function sceneName(scene) { return scenes[scene] || scene }
+function userInitial(name) { return (name || '?').trim().charAt(0).toUpperCase() || '?' }
 onLoad((option) => { kind.value = names[option.kind] ? option.kind : 'zones'; uni.setNavigationBarTitle({ title: names[kind.value] }) })
 onShow(load)
 async function load() {
@@ -62,14 +88,94 @@ async function action(work) {
 }
 const unfollow = (entry) => action(() => unfollowUser(entry.id))
 const uncollect = (entry) => action(() => removeCollection(entry.id))
-const withdraw = (id) => action(() => withdrawMoment(null, id))
+const openMoment = (id) => uni.navigateTo({ url: `/pages/zone/moment-detail?id=${id}` })
+const openChat = (userId) => uni.navigateTo({ url: `/pages/message/chat?userId=${userId}` })
 </script>
 <style lang="scss" scoped>
 .library { min-height: 100vh; box-sizing: border-box; padding: 32rpx; background: $sz-bg; }
 .row { margin-bottom: 18rpx; display: flex; flex-wrap: wrap; gap: 12rpx; align-items: center; justify-content: space-between; border-radius: 28rpx; font-size: 27rpx; font-weight: 500; }
+.row--favorite { flex-wrap: nowrap; gap: 20rpx; }
+.row--favorite .small { flex-shrink: 0; }
+.row--following { flex-wrap: nowrap; gap: 20rpx; }
 .secondary { display: block; width: 100%; font-size: 21rpx; font-weight: 400; color: $sz-text-secondary; }
 .empty { display: block; text-align: center; padding: 60rpx; color: $sz-text-tertiary; }
-.small { font-size: 21rpx; background: rgba(0,0,0,.055); margin: 0; border-radius: 999rpx; color: $sz-text-secondary; }
+.small { margin: 0; border: 1rpx solid $sz-primary-border; border-radius: 999rpx; background: $sz-primary-soft; color: $sz-primary; font-size: 21rpx; font-weight: 600; }
+.row__actions { display: flex; flex-shrink: 0; align-items: center; gap: 12rpx; }
+.small--message { border-color: rgba(255,255,255,.68); background: $sz-primary; box-shadow: 0 8rpx 20rpx rgba(59,110,168,.18); color: #fff; }
 .section-label { margin: 40rpx 0 22rpx; font-size: 27rpx; font-weight: 600; }
 .image-entry { margin-bottom: $sz-gap-md; }
+
+.following-user {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  align-items: center;
+  gap: 18rpx;
+
+  &__avatar {
+    width: 82rpx;
+    height: 82rpx;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 3rpx solid rgba(255,255,255,.88);
+    border-radius: 50%;
+    box-shadow: 0 8rpx 22rpx rgba(40,44,52,.13);
+  }
+
+  &__initial { color: #fff; font-size: 32rpx; font-weight: 600; }
+
+  &__name {
+    min-width: 0;
+    overflow: hidden;
+    color: $sz-text;
+    font-size: 27rpx;
+    font-weight: 600;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
+
+.favorite-track {
+  display: flex;
+  align-items: center;
+  gap: 18rpx;
+  flex: 1;
+  min-width: 0;
+
+  &__cover {
+    width: 92rpx;
+    height: 92rpx;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    border-radius: 18rpx;
+    background: linear-gradient(145deg, #A8B8C8, #C3B8D9);
+  }
+
+  &__cover-image { width: 100%; height: 100%; }
+  &__note { color: rgba(255,255,255,.88); font-size: 34rpx; }
+
+  &__copy {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 4rpx;
+  }
+
+  &__title,
+  &__artist {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  &__title { font-size: 27rpx; font-weight: 600; color: $sz-text; }
+  &__artist { font-size: 22rpx; font-weight: 400; color: $sz-text-secondary; }
+}
 </style>

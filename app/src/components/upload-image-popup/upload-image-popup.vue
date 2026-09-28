@@ -26,7 +26,7 @@
         <text class="bind-row__track">♪ {{ bindTrack }}</text>
       </view>
 
-      <label class="consent"><checkbox :checked="trainingConsent" @click="trainingConsent = !trainingConsent" color="#8c9bab" />Use photo to improve recommendations (optional)</label>
+      <label class="consent"><checkbox :checked="trainingConsent" @click="trainingConsent = !trainingConsent" color="#3B6EA8" />Use photo to improve recommendations (optional)</label>
       <text class="consent-note">Shared right away. You can withdraw it later.</text>
       <!-- 双按钮：跳过图片 / 上传图片（决议 D9） -->
       <view class="actions">
@@ -184,8 +184,17 @@ function onSkip() {
   }
 
   &__plus {
-    font-size: 64rpx;
-    color: $sz-text-tertiary;
+    width: 76rpx;
+    height: 76rpx;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 1rpx solid rgba(255,255,255,.68);
+    border-radius: 50%;
+    background: $sz-primary;
+    box-shadow: 0 10rpx 24rpx rgba(59,110,168,.2);
+    color: #ffffff;
+    font-size: 48rpx;
     line-height: 1;
   }
 
@@ -227,18 +236,25 @@ function onSkip() {
     }
 
     &--ghost {
-      background-color: rgba(0, 0, 0, 0.06);
-      color: $sz-text-secondary;
+      border: 1rpx solid $sz-primary-border;
+      background-color: $sz-primary-soft;
+      color: $sz-primary;
+      font-weight: 600;
     }
 
     &--primary {
       background-color: $sz-primary;
       color: #ffffff;
-      font-weight: 500;
+      font-weight: 600;
+      box-shadow: 0 12rpx 28rpx rgba(59,110,168,.2);
     }
 
     &--disabled {
-      opacity: 0.4;
+      border-color: transparent;
+      background-color: rgba(0,0,0,.08);
+      box-shadow: none;
+      color: $sz-text-tertiary;
+      opacity: 1;
     }
   }
 }
