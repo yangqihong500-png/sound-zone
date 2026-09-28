@@ -44,7 +44,7 @@ ssh -i "$DEPLOY_SSH_KEY" \
    sudo docker compose --env-file .env.production -f docker-compose.prod.yml build server; \
    sudo docker compose --env-file .env.production -f docker-compose.prod.yml build web; \
    sudo docker compose --env-file .env.production -f docker-compose.prod.yml up -d --remove-orphans; \
-   curl --fail --retry 12 --retry-delay 5 http://127.0.0.1/healthz; \
+   curl --fail --retry 12 --retry-delay 5 --retry-all-errors http://127.0.0.1/healthz; \
    sudo docker compose --env-file .env.production -f docker-compose.prod.yml ps"
 
 echo
