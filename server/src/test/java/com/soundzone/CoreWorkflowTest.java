@@ -49,6 +49,7 @@ import java.awt.image.BufferedImage;
 import java.io.ByteArrayOutputStream;
 import java.net.URI;
 import java.net.http.*;
+import java.nio.file.Files;
 import java.time.*;
 import java.util.*;
 import java.util.concurrent.*;
@@ -71,6 +72,7 @@ class CoreWorkflowTest {
     @Autowired QueueLikeRepository likeRepo;
     @Autowired PlaybackService playback;
     @Autowired MomentService moments;
+    @Autowired ImageStorage imageStorage;
     @Autowired MomentRepository momentRepo;
     @Autowired TrainingExportService training;
     @Autowired FeedbackService feedback;
@@ -354,6 +356,73 @@ class CoreWorkflowTest {
                                         null),
                                 listener.getId()));
         assertEquals(1, zoneRepo.count());
+    }
+
+    @Test
+    void zoneCoverUsesFirstTrackOrOneTimeCustomImageAndNeverFollowsPlayback() throws Exception {
+        songs.get(0).setCoverUrl("https://example.test/first.jpg");
+        songs.get(1).setCoverUrl("https://example.test/second.jpg");
+        tracks.saveAllAndFlush(songs);
+        var ids = songs.subList(0, 3).stream().map(Track::getId).toList();
+
+        var automatic =
+                zones.createZone(
+                        request("PUBLIC", null, "BAN", Set.of("电子"), ids), host.getId());
+        assertEquals("https://example.test/first.jpg", automatic.coverUrl());
+
+        clock.advance(11);
+        var advanced = zones.getDetail(automatic.id(), host.getId());
+        assertEquals(songs.get(1).getId(), advanced.nowPlaying().trackId());
+        assertEquals("https://example.test/first.jpg", advanced.coverUrl());
+
+        var renamed =
+                zones.update(
+                        automatic.id(),
+                        host.getId(),
+                        new ZoneUpdateRequest("封面保持不变", "深夜", null, null));
+        assertEquals("https://example.test/first.jpg", renamed.coverUrl());
+
+        var custom =
+                zones.createZone(
+                        request("PUBLIC", null, "BAN", Set.of("电子"), ids),
+                        listener.getId(),
+                        image());
+        assertTrue(custom.coverUrl().startsWith("/zone-covers/cover-"));
+        String key = custom.coverUrl().substring(custom.coverUrl().lastIndexOf('/') + 1);
+        assertTrue(Files.isRegularFile(imageStorage.resolveZoneCover(key)));
+    }
+
+    @Test
+    void multipartCreateEndpointAcceptsOptionalCustomCover() throws Exception {
+        var ids = songs.subList(0, 3).stream().map(Track::getId).toList();
+        String payload =
+                json.writeValueAsString(
+                        request("PUBLIC", null, "BAN", Set.of("电子"), ids));
+
+        var response =
+                mvc.perform(
+                                multipart("/zones/with-cover")
+                                        .file(image())
+                                        .param("payload", payload)
+                                        .header(
+                                                "Authorization",
+                                                "Bearer " + tokenFor(host.getId())))
+                        .andExpect(status().isOk())
+                        .andExpect(jsonPath("$.code").value(0))
+                        .andExpect(jsonPath("$.data.coverUrl").isString())
+                        .andReturn();
+
+        Zone saved = zoneRepo.findAll().get(0);
+        assertTrue(saved.getCoverUrl().startsWith("/zone-covers/cover-"));
+        String coverUrl =
+                json.readTree(response.getResponse().getContentAsString())
+                        .path("data")
+                        .path("coverUrl")
+                        .asText();
+        mvc.perform(get(coverUrl))
+                .andExpect(status().isOk())
+                .andExpect(content().contentType("image/jpeg"))
+                .andExpect(header().string("X-Content-Type-Options", "nosniff"));
     }
 
     @Test

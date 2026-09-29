@@ -21,6 +21,24 @@
         </view>
       </view>
 
+      <!-- 域封面只在创建时确定：可选自定义，否则锁定第一首歌封面。 -->
+      <view v-if="!editId" class="section cover-section">
+        <text class="section__label">Zone cover <text class="section__sub">· optional</text></text>
+        <view class="cover-picker" :style="{ backgroundColor: coverPreviewColor }">
+          <image v-if="coverPreviewUrl" class="cover-picker__image" :src="coverPreviewUrl" mode="aspectFill" />
+          <view v-else class="cover-picker__placeholder">
+            <text class="cover-picker__note">♫</text>
+            <text>First track cover</text>
+          </view>
+          <text v-if="customCoverPath" class="cover-picker__badge">Custom cover</text>
+        </view>
+        <view class="cover-actions">
+          <button class="cover-actions__primary" @click="chooseZoneCover">{{ customCoverPath ? 'Choose again' : 'Add zone cover' }}</button>
+          <button v-if="customCoverPath" class="cover-actions__remove" @click="removeZoneCover">Remove</button>
+        </view>
+        <text class="field__hint">If skipped, the first track cover is used. The cover is locked after creation.</text>
+      </view>
+
       <!-- 场景决定发现页分发，创建与编辑都必须明确选择。 -->
       <view class="section scene-section">
         <text class="section__label">Choose a scene <text class="section__required">Required</text></text>
@@ -194,7 +212,7 @@
  */
 import { ref, computed, reactive } from 'vue'
 import { onLoad } from '@dcloudio/uni-app'
-import { SCENES, getTagCatalog, createZone, updateZone, getZoneDetail, searchTracks } from '@/api/mock.js'
+import { SCENES, getTagCatalog, createZone, createZoneWithCover, updateZone, getZoneDetail, searchTracks, resolveMediaUrl } from '@/api/mock.js'
 import { finishCreateFromTab } from '@/services/create-entry.js'
 
 const statusBarHeight = ref(uni.getSystemInfoSync().statusBarHeight || 20)
@@ -204,6 +222,7 @@ const editId = ref(null)
 const submitting = ref(false)
 const advancedOpen = ref(false)
 const trackKeyword = ref('')
+const customCoverPath = ref('')
 let searchVersion = 0
 const sceneOptions = SCENES.filter((s) => s !== '全部')
 const tagCategories = ['语言', '年代', '风格', '情绪']
@@ -227,6 +246,8 @@ function formatDuration(sec) {
 // 初始歌单候选曲目（简化：展示曲库前若干首，用户点选）
 const seedTracks = ref([])
 const selectedTracks = ref([])
+const coverPreviewUrl = computed(() => customCoverPath.value || resolveMediaUrl(selectedTracks.value[0]?.coverUrl))
+const coverPreviewColor = computed(() => selectedTracks.value[0]?.coverColor || '#A8B8C8')
 
 onLoad(async (options) => {
   try {
@@ -282,6 +303,19 @@ function selectScene(scene) {
   form.scene = scene
 }
 
+function chooseZoneCover() {
+  uni.chooseImage({
+    count: 1,
+    sizeType: ['compressed'],
+    sourceType: ['album', 'camera'],
+    success: ({ tempFilePaths }) => { customCoverPath.value = tempFilePaths?.[0] || '' },
+  })
+}
+
+function removeZoneCover() {
+  customCoverPath.value = ''
+}
+
 function toggleFilterTag(tag) {
   if (editId.value || form.filterMode === 'NONE') return
   const i = form.filterTags.indexOf(tag)
@@ -334,7 +368,7 @@ async function onCreate() {
       uni.navigateBack()
       return
     }
-    const zone = await createZone({
+    const payload = {
       name: form.name.trim(),
       scene: form.scene,
       filterMode: form.filterMode,
@@ -342,7 +376,10 @@ async function onCreate() {
       visibility: form.visibility,
       password: form.password || null,
       trackIds: form.trackIds,
-    })
+    }
+    const zone = customCoverPath.value
+      ? await createZoneWithCover(payload, customCoverPath.value)
+      : await createZone(payload)
     uni.showToast({ title: 'Zone created', icon: 'success' })
     finishCreateFromTab()
     uni.redirectTo({ url: `/pages/zone/detail?id=${zone.id}&returnHome=1` })
@@ -446,6 +483,60 @@ function goHome() {
   }
   &__sub { display: block; font-size: 22rpx; color: $sz-text-tertiary; font-weight: 400; }
   &__required { display: inline; margin-left: 10rpx; font-size: 19rpx; color: $sz-brand; font-weight: 500; }
+}
+
+.cover-section { margin-top: 34rpx; }
+.cover-picker {
+  position: relative;
+  width: 100%;
+  height: 300rpx;
+  overflow: hidden;
+  border-radius: 30rpx;
+  background: linear-gradient(145deg, rgba(255,255,255,.26), rgba(0,0,0,.08));
+  box-shadow: $sz-shadow-soft;
+
+  &__image { width: 100%; height: 100%; }
+  &__placeholder {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 8rpx;
+    color: rgba(255,255,255,.82);
+    font-size: 22rpx;
+    background: linear-gradient(145deg, rgba(255,255,255,.18), rgba(0,0,0,.08));
+  }
+  &__note { font-size: 68rpx; font-weight: 300; }
+  &__badge {
+    position: absolute;
+    left: 20rpx;
+    bottom: 18rpx;
+    padding: 7rpx 16rpx;
+    border: 1rpx solid rgba(255,255,255,.56);
+    border-radius: 999rpx;
+    color: #fff;
+    background: rgba(20,24,32,.46);
+    backdrop-filter: blur(16px);
+    font-size: 18rpx;
+  }
+}
+.cover-actions {
+  display: flex;
+  gap: 14rpx;
+  margin-top: 16rpx;
+
+  button {
+    margin: 0;
+    border-radius: 999rpx;
+    font-size: 22rpx;
+    line-height: 1.4;
+    padding: 14rpx 24rpx;
+    &::after { border: none; }
+  }
+  &__primary { flex: 1; color: #fff; background: $sz-control; }
+  &__remove { flex: 0 0 auto; color: $sz-text-secondary; background: rgba(0,0,0,.055); }
 }
 
 .advanced-toggle {

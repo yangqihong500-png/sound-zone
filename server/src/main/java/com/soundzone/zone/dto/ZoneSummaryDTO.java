@@ -10,6 +10,7 @@ public record ZoneSummaryDTO(
         Integer listeners,
         String host,
         String coverColor,
+        String coverUrl,
         String visibility, // 全局首页／搜索只返回 PUBLIC；详情 DTO 继续区分私密域
         Set<String> tags,
         String filterMode,

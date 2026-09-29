@@ -5,6 +5,7 @@ import com.soundzone.auth.service.PasswordService;
 import com.soundzone.common.*;
 import com.soundzone.feedback.repository.TrackCollectionRepository;
 import com.soundzone.moment.dto.MomentDTO;
+import com.soundzone.moment.service.ImageStorage;
 import com.soundzone.moment.service.MomentService;
 import com.soundzone.queue.dto.QueueItemDTO;
 import com.soundzone.queue.entity.*;
@@ -23,6 +24,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.time.*;
 import java.util.*;
@@ -44,6 +46,7 @@ public class ZoneService {
     private final PasswordService passwords;
     private final PlaybackService playback;
     private final MomentService moments;
+    private final ImageStorage imageStorage;
     private final ActivityService activity;
     private final Clock clock;
 
@@ -165,6 +168,10 @@ public class ZoneService {
     }
 
     public ZoneDetailDTO createZone(ZoneCreateRequest req, Long userId) {
+        return createZone(req, userId, null);
+    }
+
+    public ZoneDetailDTO createZone(ZoneCreateRequest req, Long userId, MultipartFile coverFile) {
         if (req.scene() == null || req.scene().isBlank())
             throw new BizException(ResultCode.PARAM_INVALID, "请选择场景");
         if (req.trackIds() == null
@@ -205,6 +212,9 @@ public class ZoneService {
             tags.check(zone, track);
             initial.add(track);
         }
+        zone.setCoverUrl(initial.get(0).getCoverUrl());
+        if (coverFile != null)
+            zone.setCoverUrl("/zone-covers/" + imageStorage.storeZoneCover(coverFile));
         if (zone.getVisibility() == ZoneVisibility.PRIVATE) {
             if (req.password() != null && !req.password().isBlank())
                 zone.setPasswordHash(passwords.hash(req.password()));
@@ -371,6 +381,7 @@ public class ZoneService {
                 zone.getHost().getName(),
                 zone.getHost().getId(),
                 zone.getCoverColor(),
+                zone.getCoverUrl(),
                 zone.getVisibility().name(),
                 zone.getTags(),
                 zone.getFilterMode().name(),
@@ -442,6 +453,7 @@ public class ZoneService {
                 z.getListenerCount(),
                 z.getHost().getName(),
                 z.getCoverColor(),
+                z.getCoverUrl(),
                 z.getVisibility().name(),
                 z.getTags(),
                 z.getFilterMode().name(),

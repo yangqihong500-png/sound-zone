@@ -20,10 +20,18 @@ public class ImageStorage {
     private String directory;
 
     public String store(MultipartFile file) {
+        return store(file, UUID.randomUUID() + ".jpg");
+    }
+
+    /** 域封面为公开展示素材，使用独立前缀，不能借公开接口读取私密动态图片。 */
+    public String storeZoneCover(MultipartFile file) {
+        return store(file, "cover-" + UUID.randomUUID() + ".jpg");
+    }
+
+    private String store(MultipartFile file, String key) {
         if (file == null || file.isEmpty() || file.getSize() > 5 * 1024 * 1024)
             throw new BizException(ResultCode.PARAM_INVALID, "请选择 5MB 内的 JPEG 或 PNG 图片");
-        String key = UUID.randomUUID().toString() + ".jpg";
-        Path path = resolve(key);
+        Path path = resolveStoredKey(key);
         try (var input = ImageIO.createImageInputStream(file.getInputStream())) {
             var readers = ImageIO.getImageReaders(input);
             if (!readers.hasNext()) throw new BizException(ResultCode.PARAM_INVALID, "图片格式无法识别");
@@ -83,6 +91,16 @@ public class ImageStorage {
     public Path resolve(String key) {
         if (key == null || !key.matches("[0-9a-f-]{36}\\.jpg"))
             throw new BizException(ResultCode.MOMENT_NOT_FOUND);
+        return resolveStoredKey(key);
+    }
+
+    public Path resolveZoneCover(String key) {
+        if (key == null || !key.matches("cover-[0-9a-f-]{36}\\.jpg"))
+            throw new BizException(ResultCode.ZONE_COVER_NOT_FOUND);
+        return resolveStoredKey(key);
+    }
+
+    private Path resolveStoredKey(String key) {
         return Path.of(directory).toAbsolutePath().normalize().resolve(key);
     }
 }

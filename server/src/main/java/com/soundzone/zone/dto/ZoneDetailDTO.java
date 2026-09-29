@@ -14,6 +14,7 @@ public record ZoneDetailDTO(
         String host,
         Long hostId,
         String coverColor,
+        String coverUrl,
         String visibility,
         Set<String> tags,
         String filterMode,

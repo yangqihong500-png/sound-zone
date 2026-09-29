@@ -1,7 +1,7 @@
 <template>
   <view class="zone-card" :class="'zone-card--' + size" :style="cardStyle" @click="goDetail">
     <view class="zone-card__visual">
-      <image v-if="zone.nowPlaying?.coverUrl" class="zone-card__cover-image" :src="zone.nowPlaying.coverUrl" mode="aspectFill" />
+      <image v-if="zoneCoverUrl" class="zone-card__cover-image" :src="zoneCoverUrl" mode="aspectFill" />
       <view v-else class="zone-card__cover-fallback">
         <text class="zone-card__theme-mark">{{ theme.icon }}</text>
         <view class="zone-card__texture" />
@@ -30,6 +30,7 @@
 
 <script setup>
 import { computed, ref, watch } from 'vue'
+import { resolveMediaUrl } from '@/api/mock.js'
 
 const props = defineProps({
   zone: { type: Object, required: true },
@@ -54,14 +55,15 @@ const sceneLabel = computed(() => {
   return { 'Late Night': 'Night', Electronic: 'Electro' }[theme.value.label] || theme.value.label
 })
 const accent = computed(() => props.zone.coverColor || theme.value.color)
+const zoneCoverUrl = computed(() => resolveMediaUrl(props.zone.coverUrl))
 const extractedCoverTone = ref(null)
 watch(
-  () => props.zone.nowPlaying?.coverUrl,
+  zoneCoverUrl,
   async (coverUrl) => {
     extractedCoverTone.value = null
     if (!props.featured || !coverUrl) return
     const tone = await extractCoverTone(coverUrl)
-    if (props.zone.nowPlaying?.coverUrl === coverUrl) extractedCoverTone.value = tone
+    if (zoneCoverUrl.value === coverUrl) extractedCoverTone.value = tone
   },
   { immediate: true },
 )

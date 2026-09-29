@@ -40,6 +40,10 @@ public class Zone {
     @Column(length = 16)
     private String coverColor = "#A8B8C8";
 
+    /** 创建时锁定的域封面；未自定义时保存第一首开场歌曲封面。 */
+    @Column(length = 512)
+    private String coverUrl;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 16)
     private ZoneStatus status = ZoneStatus.ACTIVE;

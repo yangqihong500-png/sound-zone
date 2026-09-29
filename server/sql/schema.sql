@@ -67,6 +67,7 @@ CREATE TABLE IF NOT EXISTS sz_zone (
   scene          VARCHAR(32) NOT NULL,
   host_id        BIGINT      NOT NULL,
   cover_color    VARCHAR(16) DEFAULT '#A8B8C8',
+  cover_url      VARCHAR(512) DEFAULT NULL,
   status         VARCHAR(16) NOT NULL DEFAULT 'ACTIVE',   -- ACTIVE / ENDED
   visibility     VARCHAR(16) NOT NULL DEFAULT 'PUBLIC',   -- PUBLIC / PRIVATE
   password       VARCHAR(32) DEFAULT NULL,

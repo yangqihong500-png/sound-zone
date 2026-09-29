@@ -147,6 +147,7 @@ public class DataInitializer implements CommandLineRunner {
         zone.setScene(spec.scene());
         zone.setHost(host);
         zone.setCoverColor(spec.color());
+        zone.setCoverUrl(playlist.isEmpty() ? null : playlist.get(0).getCoverUrl());
         zone.setVisibility(ZoneVisibility.PUBLIC);
         zone.setFilterMode(FilterMode.ALLOW);
         zone.setDemoResident(true);

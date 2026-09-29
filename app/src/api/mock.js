@@ -12,6 +12,25 @@ export const joinZone = (id, credentials = {}) => post(`/zones/${id}/join`, cred
 export const leaveZone = (id) => post(`/zones/${id}/leave`)
 export const heartbeat = (id, itemId, playing) => post(`/zones/${id}/heartbeat`, { itemId, playing })
 export const createZone = (req) => post('/zones', req)
+export async function createZoneWithCover(req, filePath) {
+  await ensureSession()
+  return new Promise((resolve, reject) => {
+    uni.uploadFile({
+      url: `${API_BASE}/zones/with-cover`,
+      filePath,
+      name: 'file',
+      header: { Authorization: `Bearer ${token()}` },
+      formData: { payload: JSON.stringify(req) },
+      success: (res) => {
+        try {
+          const body = JSON.parse(res.data)
+          body.code === 0 ? resolve(body.data) : reject(apiError(body))
+        } catch { reject(new Error('域封面上传响应异常')) }
+      },
+      fail: () => reject(new Error('域封面上传失败，请重试')),
+    })
+  })
+}
 export const updateZone = (id, req) => put(`/zones/${id}`, req)
 export const getInvite = (id) => get(`/zones/${id}/invite`)
 export const reportZone = (id, reason) => post(`/zones/${id}/reports`, { reason })
@@ -33,6 +52,7 @@ export const unfollowUser = (id) => del(`/users/${id}/follow`)
 export const getMyList = (kind) => get(`/users/me/${kind}`)
 export const getConversation = (userId) => get(`/messages/users/${userId}`)
 export const sendDirectMessage = (userId, body) => post(`/messages/users/${userId}`, { body })
+export const resolveMediaUrl = (path) => path?.startsWith('/') ? API_BASE + path : (path || '')
 
 export async function uploadImage(zoneId, { filePath, queueItemId, trainingConsent }) {
   await ensureSession()

@@ -33,7 +33,7 @@
       <zone-card :zone="featured" size="featured" featured />
       <view v-if="peekZones.length" class="peek-row">
         <view v-for="zone in peekZones" :key="zone.id" class="peek-card" :style="{ backgroundColor: zone.coverColor }" @click="goZone(zone.id)">
-          <image v-if="zone.nowPlaying?.coverUrl" class="peek-card__image" :src="zone.nowPlaying.coverUrl" mode="aspectFill" />
+          <image v-if="zone.coverUrl" class="peek-card__image" :src="resolveMediaUrl(zone.coverUrl)" mode="aspectFill" />
           <view class="peek-card__scrim" />
           <text>{{ zone.name }}</text>
         </view>
@@ -76,7 +76,7 @@
 <script setup>
 import { ref, computed, watch, nextTick, onMounted, onBeforeUnmount } from 'vue'
 import { onShow, onPageScroll, onTabItemTap } from '@dcloudio/uni-app'
-import { SCENES, getZonesByScene } from '@/api/mock.js'
+import { SCENES, getZonesByScene, resolveMediaUrl } from '@/api/mock.js'
 import ZoneCard from '@/components/zone-card/zone-card.vue'
 
 const scenes = SCENES
