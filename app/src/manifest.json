@@ -12,7 +12,7 @@
     "modules": {},
     "distribute": {
       "android": { "permissions": [] },
-      "ios": {},
+      "ios": { "UIBackgroundModes": ["audio"] },
       "sdkConfigs": {}
     }
   },
@@ -21,7 +21,8 @@
     "appid": "",
     "setting": { "urlCheck": false, "es6": true, "minified": true },
     "usingComponents": true,
-    "permission": {}
+    "permission": {},
+    "requiredBackgroundModes": ["audio"]
   },
   "h5": {
     "title": "同频 SoundZone",

@@ -7,7 +7,7 @@
         <view class="zone-card__texture" />
       </view>
       <view class="zone-card__scrim" />
-      <view v-if="featured" class="zone-card__enter sz-glass-clear">Enter →</view>
+      <view v-if="featured" class="zone-card__enter sz-glass-clear" :style="enterStyle">Enter →</view>
       <view class="zone-card__meta">
         <view class="zone-card__chip sz-glass-clear"><text>{{ theme.icon }}</text><text>{{ sceneLabel }}</text></view>
         <view class="zone-card__live sz-glass-clear"><view class="zone-card__live-dot" /><text>LIVE</text></view>
@@ -29,7 +29,7 @@
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import { computed, ref, watch } from 'vue'
 
 const props = defineProps({
   zone: { type: Object, required: true },
@@ -43,17 +43,47 @@ const themes = {
   旅行: { label: 'Travel', icon: '✈', color: '#D9CFB8' },
   日系: { label: 'J-Pop', icon: '✿', color: '#E3C9CD' },
   深夜: { label: 'Late Night', icon: '☾', color: '#C3B8D9' },
-  音乐: { label: 'Music', icon: '♫', color: '#3B6EA8' },
-  电子: { label: 'Electronic', icon: '⌁', color: '#3B6EA8' },
+  音乐: { label: 'Music', icon: '♫', color: '#A8B8C8' },
+  电子: { label: 'Electronic', icon: '⌁', color: '#9FB6C8' },
   工作: { label: 'Work', icon: '⌘', color: '#A8B8C8' },
   手工: { label: 'Craft', icon: '◇', color: '#D9CFB8' },
 }
-const theme = computed(() => themes[props.zone.scene] || { label: props.zone.scene || 'Zone', icon: '◌', color: '#3B6EA8' })
+const theme = computed(() => themes[props.zone.scene] || { label: props.zone.scene || 'Zone', icon: '◌', color: '#A8B8C8' })
 const sceneLabel = computed(() => {
   if (props.featured) return theme.value.label
   return { 'Late Night': 'Night', Electronic: 'Electro' }[theme.value.label] || theme.value.label
 })
 const accent = computed(() => props.zone.coverColor || theme.value.color)
+const extractedCoverTone = ref(null)
+watch(
+  () => props.zone.nowPlaying?.coverUrl,
+  async (coverUrl) => {
+    extractedCoverTone.value = null
+    if (!props.featured || !coverUrl) return
+    const tone = await extractCoverTone(coverUrl)
+    if (props.zone.nowPlaying?.coverUrl === coverUrl) extractedCoverTone.value = tone
+  },
+  { immediate: true },
+)
+const enterStyle = computed(() => {
+  const tone = extractedCoverTone.value || toneFromHex(accent.value)
+  if (!tone || tone.saturation < 0.14) {
+    return {
+      backgroundColor: 'rgba(255,255,255,.76)',
+      borderColor: 'rgba(255,255,255,.88)',
+      color: '#1c1c1e',
+      boxShadow: '0 12rpx 30rpx rgba(15,23,42,.16), inset 0 1rpx 0 rgba(255,255,255,.5)',
+    }
+  }
+  const saturation = Math.round(Math.min(62, Math.max(34, tone.saturation * 76)))
+  const surfaceLightness = tone.lightness < 0.24 ? 24 : 20
+  return {
+    backgroundColor: `hsla(${Math.round(tone.hue)}, ${saturation}%, ${surfaceLightness}%, .68)`,
+    borderColor: `hsla(${Math.round(tone.hue)}, 58%, 90%, .68)`,
+    color: '#ffffff',
+    boxShadow: `0 12rpx 30rpx hsla(${Math.round(tone.hue)}, 52%, 14%, .26), inset 0 1rpx 0 rgba(255,255,255,.24)`,
+  }
+})
 const searchMatchLabel = computed(() => {
   if (props.zone.searchMatch?.type === 'QUEUED') return `Up next #${props.zone.searchMatch.position}`
   if (props.zone.searchMatch?.type === 'PRESET') return `Saved for later #${props.zone.searchMatch.position}`
@@ -69,6 +99,82 @@ const cardStyle = computed(() => ({
   backgroundColor: accent.value,
   boxShadow: '0 18rpx 54rpx rgba(30,55,84,.14)',
 }))
+
+function toneFromHex(value) {
+  const hex = String(value || '').trim().replace(/^#/, '')
+  if (!/^[\da-f]{6}$/i.test(hex)) return null
+  return rgbToHsl({
+    red: Number.parseInt(hex.slice(0, 2), 16) / 255,
+    green: Number.parseInt(hex.slice(2, 4), 16) / 255,
+    blue: Number.parseInt(hex.slice(4, 6), 16) / 255,
+  })
+}
+
+function rgbToHsl({ red, green, blue }) {
+  const max = Math.max(red, green, blue)
+  const min = Math.min(red, green, blue)
+  const delta = max - min
+  const lightness = (max + min) / 2
+  let hue = 0
+  if (delta) {
+    if (max === red) hue = 60 * (((green - blue) / delta) % 6)
+    else if (max === green) hue = 60 * ((blue - red) / delta + 2)
+    else hue = 60 * ((red - green) / delta + 4)
+  }
+  if (hue < 0) hue += 360
+  const saturation = delta ? delta / (1 - Math.abs(2 * lightness - 1)) : 0
+  return { hue, saturation, lightness }
+}
+
+async function extractCoverTone(url) {
+  // #ifdef H5
+  return new Promise((resolve) => {
+    const image = new window.Image()
+    image.crossOrigin = 'anonymous'
+    image.onload = () => {
+      try {
+        const canvas = document.createElement('canvas')
+        canvas.width = 32
+        canvas.height = 32
+        const context = canvas.getContext('2d', { willReadFrequently: true })
+        context.drawImage(image, 0, 0, 32, 32)
+        resolve(toneFromPixels(context.getImageData(0, 0, 32, 32).data))
+      } catch { resolve(null) }
+    }
+    image.onerror = () => resolve(null)
+    image.src = url
+  })
+  // #endif
+  // #ifndef H5
+  return null
+  // #endif
+}
+
+function toneFromPixels(pixels) {
+  const buckets = Array.from({ length: 24 }, () => ({ weight: 0, hue: 0, saturation: 0, lightness: 0 }))
+  for (let index = 0; index < pixels.length; index += 16) {
+    if (pixels[index + 3] < 180) continue
+    const tone = rgbToHsl({
+      red: pixels[index] / 255,
+      green: pixels[index + 1] / 255,
+      blue: pixels[index + 2] / 255,
+    })
+    if (tone.saturation < 0.12 || tone.lightness < 0.08 || tone.lightness > 0.94) continue
+    const weight = (0.45 + tone.saturation) * (1 - Math.abs(tone.lightness - 0.56) * 0.7)
+    const bucket = buckets[Math.min(23, Math.floor(tone.hue / 15))]
+    bucket.weight += weight
+    bucket.hue += tone.hue * weight
+    bucket.saturation += tone.saturation * weight
+    bucket.lightness += tone.lightness * weight
+  }
+  const winner = buckets.reduce((best, item) => item.weight > best.weight ? item : best)
+  if (winner.weight < 2) return null
+  return {
+    hue: winner.hue / winner.weight,
+    saturation: winner.saturation / winner.weight,
+    lightness: winner.lightness / winner.weight,
+  }
+}
 
 function goDetail() {
   uni.navigateTo({ url: '/pages/zone/detail?id=' + props.zone.id })
@@ -113,9 +219,10 @@ function goDetail() {
   &__enter {
     position: absolute; top: 28rpx; right: 28rpx; z-index: 2;
     padding: 12rpx 28rpx; border: 1rpx solid rgba(255,255,255,.72); border-radius: 999rpx;
-    background: $sz-primary; color: #fff; font-size: 24rpx; font-weight: 600;
-    box-shadow: 0 12rpx 28rpx rgba(15,23,42,.24), inset 0 1rpx 0 rgba(255,255,255,.2);
-    backdrop-filter: none; -webkit-backdrop-filter: none;
+    color: #fff; font-size: 24rpx; font-weight: 600;
+    text-shadow: 0 1rpx 5rpx rgba(0,0,0,.18);
+    backdrop-filter: blur(18px) saturate(128%);
+    -webkit-backdrop-filter: blur(18px) saturate(128%);
   }
   &__meta {
     position: absolute;
@@ -147,10 +254,10 @@ function goDetail() {
   &__name, &__track, &__host, &__filter { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   &__name { font-size: 27rpx; font-weight: 650; line-height: 1.3; }
   &__track { margin-top: 4rpx; color: $sz-text-secondary; font-size: 20rpx; }
-  &__track--match { color: $sz-primary; }
+  &__track--match { color: $sz-control; }
   &__details { display: flex; align-items: center; gap: 10rpx; margin-top: 10rpx; min-width: 0; }
   &__filter { flex: 1; min-width: 0; color: $sz-text-tertiary; font-size: 18rpx; }
-  &__host { flex-shrink: 0; color: $sz-primary; font-size: 18rpx; }
+  &__host { flex-shrink: 0; color: $sz-text-secondary; font-size: 18rpx; }
   &__private { flex-shrink: 0; color: $sz-text-tertiary; font-size: 16rpx; letter-spacing: 1rpx; }
 }
 .zone-card--tall,

@@ -21,6 +21,21 @@
         </view>
       </view>
 
+      <!-- 场景决定发现页分发，创建与编辑都必须明确选择。 -->
+      <view class="section scene-section">
+        <text class="section__label">Choose a scene <text class="section__required">Required</text></text>
+        <view class="capsules">
+          <view
+            v-for="s in sceneOptions"
+            :key="s"
+            class="capsule scene-capsule"
+            :class="{ 'capsule--active': form.scene === s }"
+            @click="selectScene(s)"
+          ><text class="capsule__icon">{{ sceneIcon(s) }}</text>{{ sceneLabel(s) }}</view>
+        </view>
+        <text v-if="!form.scene" class="field__hint">Choose one scene before creating the zone.</text>
+      </view>
+
       <!-- 快速创建的第二个必填项：恰好三首初始歌曲，按点选顺序进入 FIFO。 -->
       <view v-if="!editId" class="section">
         <text class="section__label">Starter playlist <text class="section__sub">· choose 3 tracks</text></text>
@@ -65,6 +80,7 @@
             v-for="track in availableSeedTracks"
             :key="track.id"
             class="track-row"
+            :class="{ 'track-row--conflict': isTrackBlocked(track) }"
             @click="toggleTrack(track)"
           >
             <view class="track-row__cover" :style="{ backgroundColor: track.coverColor || '#A8B8C8' }">
@@ -74,7 +90,7 @@
             <view class="track-row__info">
               <text class="track-row__title">{{ track.title }}</text>
               <text class="track-row__artist">{{ track.artist }}</text>
-              <text class="track-row__duration">{{ formatDuration(track.durationSec) }}</text>
+              <text class="track-row__duration">{{ formatDuration(track.durationSec) }}<text v-if="isTrackBlocked(track)"> · blocked by filter</text></text>
             </view>
             <text class="track-row__add">＋</text>
           </view>
@@ -84,29 +100,15 @@
         <text v-if="blockedTracks.length" class="field__hint field__hint--error">{{ blockedTracks.length }} selected track(s) conflict with this filter. Remove them or change the filter before creating.</text>
       </view>
 
-      <view v-if="!editId" class="advanced-toggle" @click="advancedOpen = !advancedOpen">
+      <view v-if="!editId" class="advanced-toggle" @click="toggleAdvancedSettings">
         <view>
           <text class="section__label">More settings</text>
-          <text class="section__sub">Scene, music filter and privacy</text>
+          <text class="section__sub">Music filter and privacy</text>
         </view>
         <text class="advanced-toggle__icon">{{ advancedOpen ? '−' : '+' }}</text>
       </view>
 
       <view v-if="editId || advancedOpen" class="advanced-panel">
-      <!-- 场景选择（归入分发场景） -->
-      <view class="section">
-        <text class="section__label">Choose a scene</text>
-        <view class="capsules">
-          <view
-            v-for="s in sceneOptions"
-            :key="s"
-            class="capsule"
-            :class="{ 'capsule--active': form.scene === s }"
-            @click="form.scene = s"
-          ><text class="capsule__icon">{{ sceneIcon(s) }}</text>{{ sceneLabel(s) }}</view>
-        </view>
-      </view>
-
       <!-- 音乐过滤：默认不限制；启用过滤后再选标签。 -->
       <view class="section">
         <text class="section__label">Music filters</text>
@@ -132,8 +134,8 @@
       </view>
 
       <view v-if="form.filterMode !== 'NONE'" class="section">
-        <text class="section__label">Theme tags</text>
-        <text class="field__hint">{{ form.filterMode === 'BAN' ? 'Songs with any selected tag will be blocked.' : 'Only songs with a selected tag can play.' }}</text>
+        <text class="section__label">Filter tags</text>
+        <text class="field__hint">{{ filterRuleHint }}</text>
         <view v-for="category in tagCategories" :key="category" class="tag-group">
           <text class="tag-group__name">{{ categoryLabel(category) }}</text>
           <view class="capsules">
@@ -152,7 +154,7 @@
       <view v-if="!editId" class="section">
         <view class="privacy-row">
           <view><text class="section__label">Private Zone</text><text class="section__sub">Invite only access</text></view>
-          <switch :checked="form.visibility === 'PRIVATE'" @change="onPrivacyChange" color="#3B6EA8" />
+          <switch :checked="form.visibility === 'PRIVATE'" @change="onPrivacyChange" color="#1C1C1E" />
         </view>
         <view v-if="form.visibility === 'PRIVATE'" class="field">
           <view class="field__line">
@@ -187,7 +189,7 @@
 <script setup>
 /**
  * 创建域页 v2：2026-09-24 决议 D2/D5/D9
- * 快速创建：域名 + 恰好三首歌曲；场景、标签过滤与隐私收进 More settings。
+ * 快速创建：域名 + 场景 + 恰好三首歌曲；标签过滤与隐私收进 More settings。
  * 初始歌曲按点选顺序入队；域主可复用本页修改域信息。
  */
 import { ref, computed, reactive } from 'vue'
@@ -204,14 +206,13 @@ const advancedOpen = ref(false)
 const trackKeyword = ref('')
 let searchVersion = 0
 const sceneOptions = SCENES.filter((s) => s !== '全部')
-const tagCategories = ['语言', '年代', '风格', '场景', '情绪']
+const tagCategories = ['语言', '年代', '风格', '情绪']
 const sceneLabels = { 音乐: 'Music', 自习: 'Study', 健身: 'Fitness', 旅行: 'Travel', 日系: 'J-Pop', 电子: 'Electronic', 工作: 'Work', 手工: 'Craft', 深夜: 'Late Night' }
 const sceneIcons = { 音乐: '♫', 自习: '✎', 健身: '⌁', 旅行: '✈', 日系: '✿', 电子: '⌁', 工作: '⌘', 手工: '◇', 深夜: '☾' }
-const categoryLabels = { 语言: 'Language', 年代: 'Era', 风格: 'Genre', 场景: 'Scene', 情绪: 'Mood' }
+const categoryLabels = { 语言: 'Language', 年代: 'Era', 风格: 'Genre', 情绪: 'Mood' }
 const tagLabels = {
   华语: 'Mandarin', 粤语: 'Cantonese', 日语: 'Japanese', 韩语: 'Korean', 英语: 'English', 纯音乐: 'Instrumental',
   流行: 'Pop', 摇滚: 'Rock', 电子: 'Electronic', 说唱: 'Hip-Hop', 民谣: 'Folk', 爵士: 'Jazz', 古典: 'Classical', 抖音热曲: 'Trending',
-  自习: 'Study', 健身: 'Fitness', 旅行: 'Travel', 通勤: 'Commute', 睡前: 'Bedtime', 工作: 'Work', 手工: 'Craft', 深夜: 'Late Night',
   舒缓: 'Calm', 治愈: 'Comforting', 亢奋: 'Energetic', 忧郁: 'Melancholy', 情歌: 'Romantic', 专注: 'Focus',
 }
 function sceneLabel(s) { return sceneLabels[s] || s }
@@ -248,7 +249,7 @@ async function loadTracks() {
 
 const form = reactive({
   name: '',
-  scene: '音乐',
+  scene: '',
   filterMode: 'NONE',
   filterTags: [],
   visibility: 'PUBLIC',
@@ -260,6 +261,9 @@ const blockedTracks = computed(() => selectedTracks.value.filter(isTrackBlocked)
 const availableSeedTracks = computed(() => seedTracks.value.filter((track) => !form.trackIds.includes(track.id)))
 const resultsListHeight = computed(() => Math.min(availableSeedTracks.value.length * 144, 520))
 const filterReady = computed(() => form.filterMode === 'NONE' || form.filterTags.length > 0)
+const filterRuleHint = computed(() => form.filterMode === 'BAN'
+  ? 'Songs with any selected tag will be blocked.'
+  : 'Match one selected tag in every category you use.')
 const canCreate = computed(() =>
   form.name.trim().length > 0 && form.scene && (editId.value || (filterReady.value && form.trackIds.length === 3 && blockedTracks.value.length === 0))
 )
@@ -270,6 +274,14 @@ function selectFilterMode(mode) {
   if (mode === 'NONE') form.filterTags.splice(0)
 }
 
+function toggleAdvancedSettings() {
+  advancedOpen.value = !advancedOpen.value
+}
+
+function selectScene(scene) {
+  form.scene = scene
+}
+
 function toggleFilterTag(tag) {
   if (editId.value || form.filterMode === 'NONE') return
   const i = form.filterTags.indexOf(tag)
@@ -278,8 +290,12 @@ function toggleFilterTag(tag) {
 
 function isTrackBlocked(track) {
   if (form.filterMode === 'NONE' || !form.filterTags.length) return false
-  const hit = (track.tags || []).some((tag) => form.filterTags.includes(tag))
-  return form.filterMode === 'BAN' ? hit : !hit
+  const trackTags = track.tags || []
+  if (form.filterMode === 'BAN') return trackTags.some((tag) => form.filterTags.includes(tag))
+  return tagCategories.some((category) => {
+    const selected = (tagCatalog.value[category] || []).filter((tag) => form.filterTags.includes(tag))
+    return selected.length > 0 && !selected.some((tag) => trackTags.includes(tag))
+  })
 }
 
 function toggleTrack(track) {
@@ -288,6 +304,10 @@ function toggleTrack(track) {
     form.trackIds.splice(i, 1)
     selectedTracks.value.splice(i, 1)
   } else {
+    if (isTrackBlocked(track)) {
+      uni.showToast({ title: form.filterMode === 'BAN' ? 'Blocked by selected tags' : 'Does not match every filter category', icon: 'none' })
+      return
+    }
     if (form.trackIds.length >= 3) {
       uni.showToast({ title: 'Choose exactly 3 tracks', icon: 'none' })
       return
@@ -304,7 +324,7 @@ function onPrivacyChange(e) {
 async function onCreate() {
   if (submitting.value) return
   if (!canCreate.value) {
-    uni.showToast({ title: 'Name your zone and choose 3 tracks', icon: 'none' })
+    uni.showToast({ title: !form.scene ? 'Choose a scene' : 'Name your zone and choose 3 tracks', icon: 'none' })
     return
   }
   submitting.value = true
@@ -372,7 +392,7 @@ function goHome() {
   padding-left: 40rpx;
   padding-right: 40rpx;
   background: $sz-glass-bg;
-  border-bottom: 1rpx solid rgba(59,110,168,.1);
+  border-bottom: 1rpx solid rgba(0,0,0,.08);
   backdrop-filter: blur(28px) saturate(120%);
 
   &__back {
@@ -392,7 +412,7 @@ function goHome() {
   margin-top: 34rpx;
 
   &__line {
-    border-bottom: 2rpx solid $sz-primary-border;
+    border-bottom: 2rpx solid $sz-control-border;
     padding: 20rpx 4rpx;
   }
 
@@ -425,6 +445,7 @@ function goHome() {
     margin-bottom: 18rpx;
   }
   &__sub { display: block; font-size: 22rpx; color: $sz-text-tertiary; font-weight: 400; }
+  &__required { display: inline; margin-left: 10rpx; font-size: 19rpx; color: $sz-brand; font-weight: 500; }
 }
 
 .advanced-toggle {
@@ -443,7 +464,7 @@ function goHome() {
     text-align: center;
     font-size: 38rpx;
     line-height: 1;
-    color: $sz-primary;
+    color: $sz-control;
   }
 }
 
@@ -480,14 +501,19 @@ function goHome() {
   border: 1rpx solid transparent;
 
   &--active {
-    background-color: $sz-primary-soft;
-    color: $sz-primary;
-    border-color: $sz-primary-border;
+    background-color: $sz-control;
+    color: #fff;
+    border-color: $sz-control;
+    box-shadow: 0 8rpx 18rpx rgba(0, 0, 0, 0.12);
   }
   &--disabled { opacity: .58; }
   &--conflict { border-color: #bd7777; color: #8f4444; }
   &__icon { margin-right: 7rpx; font-size: 25rpx; }
 }
+
+.scene-section { margin-top: 36rpx; }
+.scene-capsule { transition: background-color .16s ease, color .16s ease, transform .16s ease; }
+.scene-capsule:active { transform: scale(.97); }
 
 /* 过滤模式切换：极简分段控件 */
 .mode-switch {
@@ -507,7 +533,7 @@ function goHome() {
 
     &--active {
       background-color: #fff;
-      color: $sz-primary;
+      color: $sz-control;
       box-shadow: 0 3rpx 8rpx rgba(0,0,0,.06);
     }
   }
@@ -526,7 +552,7 @@ function goHome() {
 .create-bar {
   padding: 24rpx 40rpx calc(24rpx + env(safe-area-inset-bottom));
   background: rgba(255,255,255,.86);
-  border-top: 1rpx solid rgba(59,110,168,.1);
+  border-top: 1rpx solid rgba(0,0,0,.08);
   backdrop-filter: blur(28px) saturate(120%);
 
   &__btn {
@@ -541,15 +567,15 @@ function goHome() {
     }
 
     &--ready {
-      background-color: $sz-primary;
+      background-color: $sz-brand;
       color: #ffffff;
       font-weight: 600;
-      box-shadow: 0 16rpx 34rpx rgba(59,110,168,.24), inset 0 1rpx 0 rgba(255,255,255,.22);
+      box-shadow: 0 16rpx 34rpx rgba(29,78,216,.24), inset 0 1rpx 0 rgba(255,255,255,.22);
     }
   }
 }
 .track-search {
-  border-bottom: 1rpx solid $sz-primary-border;
+  border-bottom: 1rpx solid $sz-control-border;
   padding: 16rpx 4rpx;
   margin-bottom: 10rpx;
 }
@@ -564,7 +590,7 @@ function goHome() {
   }
 
   &--selected {
-    background: $sz-primary-soft;
+    background: $sz-control-soft;
     border-radius: 24rpx;
     padding: 0 16rpx;
   }
@@ -645,10 +671,10 @@ function goHome() {
     align-items: center;
     justify-content: center;
     border-radius: 50%;
-    background: $sz-primary;
+    background: $sz-control;
     color: #ffffff;
     border: 1rpx solid rgba(255,255,255,.7);
-    box-shadow: 0 8rpx 20rpx rgba(59,110,168,.2);
+    box-shadow: 0 8rpx 20rpx rgba(0,0,0,.14);
     font-size: 28rpx;
   }
 
@@ -661,8 +687,8 @@ function goHome() {
     justify-content: center;
     position: relative;
     border-radius: 50%;
-    background: $sz-primary-muted;
-    color: $sz-primary;
+    background: $sz-control-muted;
+    color: $sz-control;
     font-size: 21rpx;
     font-weight: 600;
   }

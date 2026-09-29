@@ -195,9 +195,9 @@ function openChat() {
 
   &__btn {
     font-size: $sz-font-base;
-    color: $sz-primary;
-    background-color: $sz-primary-soft;
-    border: 1rpx solid $sz-primary-border;
+    color: $sz-control;
+    background-color: $sz-control-soft;
+    border: 1rpx solid $sz-control-border;
     border-radius: 999rpx;
     padding: 8rpx 48rpx;
 
@@ -217,7 +217,7 @@ function openChat() {
   margin: 32rpx 0 24rpx;
   min-height: 330rpx;
   justify-content: center;
-  background: linear-gradient(135deg, rgba(59,110,168,.14), rgba(255,255,255,.68)), #fff;
+  background: linear-gradient(135deg, rgba(28,28,30,.06), rgba(255,255,255,.72)), #fff;
   border-radius: 48rpx;
   &__glow { position: absolute; top: 45rpx; width: 180rpx; height: 180rpx; border-radius: 50%; filter: blur(32rpx); opacity: .45; }
 
@@ -261,8 +261,8 @@ function openChat() {
 
   &__me-tag {
     font-size: $sz-font-xs;
-    color: $sz-accent;
-    border: 1rpx solid $sz-accent;
+    color: $sz-control;
+    border: 1rpx solid $sz-control;
     border-radius: 999rpx;
     padding: 0 12rpx;
   }
@@ -295,9 +295,9 @@ function openChat() {
 
   }
 
-  &__follow { color: #ffffff; background-color: $sz-primary; }
-  &__follow--done { background-color: $sz-primary-soft; color: $sz-primary; }
-  &__message { color: #ffffff; background-color: $sz-primary; }
+  &__follow { color: #ffffff; background-color: $sz-control; }
+  &__follow--done { background-color: $sz-control-soft; color: $sz-control; }
+  &__message { color: #ffffff; background-color: $sz-control; }
 }
 
 .stats {

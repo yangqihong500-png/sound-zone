@@ -11,13 +11,28 @@ let host = null
 let lastSeek = 0
 let currentStreamUrl = ''
 let loadTimer = null
+let endedHandler = null
+
+/** 由域详情注册；后台音频自然结束后立即读取服务端权威快照并衔接下一首。 */
+export function setPlaybackEndedHandler(handler) {
+  endedHandler = typeof handler === 'function' ? handler : null
+}
 
 export function resetPlayer() {
   generation++
   current = null
   currentStreamUrl = ''
   clearTimeout(loadTimer)
-  if (audio) { audio.destroy(); audio = null }
+  if (audio) {
+    detachAudioEvents(audio)
+    // #ifdef H5
+    audio.destroy()
+    // #endif
+    // #ifndef H5
+    audio.stop()
+    // #endif
+    audio = null
+  }
   if (host?.stop) host.stop()
   host = null
   Object.assign(playback, { playing: false, loading: false, itemId: null, message: '', needsGesture: false })
@@ -63,8 +78,22 @@ function absoluteStreamUrl(url) {
 }
 function prepareAudio(version, tryAutoplay) {
   clearTimeout(loadTimer)
-  if (audio) audio.destroy()
+  if (audio) {
+    detachAudioEvents(audio)
+    // #ifdef H5
+    audio.destroy()
+    // #endif
+    // #ifndef H5
+    audio.stop()
+    // #endif
+  }
+  // H5 没有后台音频 API，仍使用普通上下文；App 与小程序使用系统后台音频。
+  // #ifdef H5
   audio = uni.createInnerAudioContext()
+  // #endif
+  // #ifndef H5
+  audio = uni.getBackgroundAudioManager()
+  // #endif
   let canPlayHandled = false
   Object.assign(playback, { playing: false, loading: true, needsGesture: true, message: '正在连接音源…' })
   audio.autoplay = false
@@ -74,7 +103,12 @@ function prepareAudio(version, tryAutoplay) {
     Object.assign(playback, { playing: true, loading: false, needsGesture: false, message: '正在同步播放' })
   })
   audio.onPause(() => { if (version === generation) playback.playing = false })
-  audio.onEnded(() => { if (version === generation) playback.playing = false })
+  audio.onEnded(() => {
+    if (version !== generation) return
+    playback.playing = false
+    playback.message = '正在衔接下一首…'
+    endedHandler?.()
+  })
   audio.onError((error) => {
     if (version !== generation) return
     clearTimeout(loadTimer)
@@ -94,11 +128,24 @@ function prepareAudio(version, tryAutoplay) {
     audio.seek(positionSeconds())
     if (tryAutoplay) audio.play()
   })
+  // #ifndef H5
+  audio.title = current?.title || 'SoundZone'
+  audio.singer = current?.artist || 'SoundZone'
+  audio.coverImgUrl = current?.coverUrl || ''
+  audio.startTime = positionSeconds()
+  // #endif
   audio.src = currentStreamUrl
   loadTimer = setTimeout(() => {
     if (version !== generation || playback.playing) return
     Object.assign(playback, { loading: false, needsGesture: true, message: '音源连接较慢，请点击重试' })
   }, 25000)
+}
+function detachAudioEvents(context) {
+  context.offPlay?.()
+  context.offPause?.()
+  context.offEnded?.()
+  context.offError?.()
+  context.offCanplay?.()
 }
 function audioErrorMessage(error) {
   const detail = error?.errMsg || error?.message || ''

@@ -8,12 +8,12 @@ import jakarta.validation.constraints.Size;
 import java.util.List;
 import java.util.Set;
 
-/** 创建域请求：最低门槛为域名 + 恰好三首初始歌曲；场景、隐私和标签过滤均有默认值。 */
+/** 创建域请求：域名、场景与恰好三首初始歌曲必填；隐私和标签过滤有默认值。 */
 public record ZoneCreateRequest(
         @NotBlank(message = "域名不能为空")
                 @Size(max = 64, message = "域名最长 64 字符")
                 String name,
-        @Size(max = 32, message = "场景最长 32 字符") String scene,
+        @NotBlank(message = "请选择场景") @Size(max = 32, message = "场景最长 32 字符") String scene,
         Long hostId, // 兼容旧请求，实际身份由登录态决定
 
         /** 初始歌单：恰好 3 首，按选择顺序进入 FIFO。 */

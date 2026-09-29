@@ -62,6 +62,8 @@ management:
 soundzone:
   # 独立产品 Demo 默认允许游客进入；公开部署可显式关闭并接入自己的账号体系。
   guest-enabled: ${SOUNDZONE_GUEST_ENABLED:true}
+  # 本地默认开放；未配置 HTTPS 的生产 Compose 默认关闭，避免密码经明文 HTTP 传输。
+  password-auth-enabled: ${SOUNDZONE_PASSWORD_AUTH_ENABLED:true}
   # 默认写入可重复初始化的常驻演示用户与域；公开部署可关闭。
   demo-data-enabled: ${SOUNDZONE_DEMO_DATA_ENABLED:true}
   active-window-minutes: 30

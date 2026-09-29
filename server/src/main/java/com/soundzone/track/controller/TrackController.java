@@ -26,7 +26,7 @@ public class TrackController {
 
     @GetMapping("/tags")
     public Result<?> tags() {
-        return Result.ok(TagCatalog.CATALOG);
+        return Result.ok(TagCatalog.FILTER_CATALOG);
     }
 
     @GetMapping("/{id}/playback")

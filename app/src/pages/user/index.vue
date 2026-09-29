@@ -7,6 +7,10 @@
       </view>
       <text class="profile-card__name">@{{ user.name }}</text>
       <text class="profile-card__slogan">someone is always listening with you</text>
+      <view v-if="session.passwordAuth" class="profile-card__account" @click="onAccount">
+        <text>{{ session.guest ? 'Guest · Log in or register' : 'Registered account · Log out' }}</text>
+      </view>
+      <text v-else class="profile-card__account-note">Guest demo · Account login requires HTTPS</text>
     </view>
 
     <view class="stats">
@@ -30,8 +34,9 @@
 import { ref, computed } from 'vue'
 import { onShow } from '@dcloudio/uni-app'
 import { getCurrentUser } from '@/api/mock.js'
+import { session, logoutAccount } from '@/api/session.js'
 
-const user = ref({ name: 'Loading…', avatarColor: '#3b6ea8', stats: { uploads: 0, likes: 0, moments: 0, following: 0 } })
+const user = ref({ name: 'Loading…', avatarColor: '#a8b8c8', stats: { uploads: 0, likes: 0, moments: 0, following: 0 } })
 const stats = computed(() => [
   { label: 'Uploads', value: formatStat(user.value.stats?.uploads) },
   { label: 'Likes', value: formatStat(user.value.stats?.likes) },
@@ -52,6 +57,17 @@ onShow(async () => {
   catch (e) { user.value.name = 'Unavailable'; uni.showToast({ title: e.message, icon: 'none' }) }
 })
 function onMenu(item) { uni.navigateTo({ url: '/pages/user/library?kind=' + item.kind }) }
+async function onAccount() {
+  if (session.guest) {
+    uni.navigateTo({ url: '/pages/auth/account' })
+    return
+  }
+  uni.showModal({ title: 'Log out?', content: 'You can sign in again with your username and password.', success: async ({ confirm }) => {
+    if (!confirm) return
+    await logoutAccount()
+    uni.navigateTo({ url: '/pages/auth/account' })
+  } })
+}
 </script>
 
 <style lang="scss" scoped>
@@ -59,13 +75,15 @@ function onMenu(item) { uni.navigateTo({ url: '/pages/user/library?kind=' + item
 .profile-card {
   position: relative; overflow: hidden; min-height: 360rpx; border-radius: 48rpx;
   display: flex; flex-direction: column; align-items: center; justify-content: center;
-  background: linear-gradient(135deg, rgba(59,110,168,.14), rgba(255,255,255,.68)), #fff;
+  background: linear-gradient(135deg, rgba(28,28,30,.06), rgba(255,255,255,.72)), #fff;
   box-shadow: $sz-shadow-soft;
 }
 .profile-card__glow { position: absolute; top: 40rpx; width: 180rpx; height: 180rpx; border-radius: 50%; filter: blur(32rpx); opacity: .45; }
 .profile-card__avatar { position: relative; width: 140rpx; height: 140rpx; border: 4rpx solid rgba(255,255,255,.85); box-shadow: $sz-shadow-float; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: #fff; font-size: 58rpx; font-weight: 600; }
 .profile-card__name { position: relative; margin-top: 18rpx; font-size: 34rpx; font-weight: 600; color: $sz-text; }
 .profile-card__slogan { position: relative; margin-top: 4rpx; font-size: 22rpx; font-style: italic; color: $sz-text-tertiary; }
+.profile-card__account { position: relative; margin-top: 20rpx; padding: 10rpx 20rpx; border-radius: 999rpx; background: rgba(255,255,255,.62); border: 1rpx solid rgba(0,0,0,.08); color: $sz-text-secondary; font-size: 20rpx; }
+.profile-card__account-note { position: relative; margin-top: 20rpx; color: $sz-text-tertiary; font-size: 19rpx; }
 .stats { display: flex; margin-top: 24rpx; border-radius: 32rpx; background: #fff; box-shadow: $sz-shadow-soft; overflow: hidden; }
 .stats__item { position: relative; flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: center; padding: 28rpx 0; }
 .stats__item:not(:last-child)::after { content: ''; position: absolute; right: 0; top: 25%; height: 50%; width: 1rpx; background: rgba(0,0,0,.07); }

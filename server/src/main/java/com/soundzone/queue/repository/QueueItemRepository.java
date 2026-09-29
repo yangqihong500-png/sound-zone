@@ -19,6 +19,8 @@ public interface QueueItemRepository extends JpaRepository<QueueItem, Long> {
     /** 当前播放条目（每域至多一条 PLAYING） */
     Optional<QueueItem> findFirstByZoneIdAndStatus(Long zoneId, QueueStatus status);
 
+    boolean existsByZoneIdAndStatusIn(Long zoneId, List<QueueStatus> statuses);
+
     /** 上传冷却判定（2026-09-24 决议 D4）：查该用户在该域最近的上传条目 */
     Optional<QueueItem> findFirstByZoneIdAndRequesterIdOrderByCreatedAtDescIdDesc(
             Long zoneId, Long requesterId);

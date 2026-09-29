@@ -67,7 +67,7 @@ async function onLike() {
 
     .queue-item__rank,
     .queue-item__title {
-      color: $sz-accent;
+      color: $sz-control;
       font-weight: 500;
     }
   }
@@ -82,9 +82,9 @@ async function onLike() {
     width: 70rpx; height: 70rpx; border-radius: 18rpx; flex-shrink: 0;
     overflow: hidden;
     display: flex; align-items: center; justify-content: center;
-    background: linear-gradient(140deg, #3b6ea8, #8fb0d2);
+    background: linear-gradient(140deg, #7d8794, #b8c0ca);
     color: rgba(255,255,255,.9); font-size: 26rpx;
-    &--playing { box-shadow: 0 0 0 2rpx $sz-primary-border; }
+    &--playing { box-shadow: 0 0 0 2rpx $sz-control-border; }
   }
   &__cover-image { width: 100%; height: 100%; }
 
@@ -132,7 +132,7 @@ async function onLike() {
     color: $sz-text-tertiary;
 
     &.liked {
-      color: $sz-accent;
+      color: $sz-control;
     }
   }
 
@@ -141,7 +141,7 @@ async function onLike() {
     color: $sz-text-secondary;
 
     &.liked {
-      color: $sz-accent;
+      color: $sz-control;
     }
   }
 }

@@ -46,7 +46,10 @@ public class QueueService {
     public QueueItemDTO requestSong(Long zoneId, SongRequest req, Long userId) {
         Zone zone = access.lock(zoneId);
         access.member(zoneId, userId);
-        long remain = cooldownRemainSeconds(zoneId, userId);
+        // 先结算已经自然播完的歌曲。若结算后已无当前曲和待播曲，立即开放补歌，
+        // 避免最后一首提前结束后仍被个人冷却时间卡住。
+        playback.advanceLocked(zone);
+        long remain = cooldownRemainSecondsLocked(zoneId, userId);
         if (remain > 0)
             throw new BizException(
                     ResultCode.UPLOAD_COOLDOWN,
@@ -115,7 +118,15 @@ public class QueueService {
     }
 
     public long cooldownRemainSeconds(Long zoneId, Long userId) {
+        Zone zone = access.lock(zoneId);
         access.member(zoneId, userId);
+        playback.advanceLocked(zone);
+        return cooldownRemainSecondsLocked(zoneId, userId);
+    }
+
+    private long cooldownRemainSecondsLocked(Long zoneId, Long userId) {
+        if (!queue.existsByZoneIdAndStatusIn(
+                zoneId, List.of(QueueStatus.PLAYING, QueueStatus.QUEUED))) return 0L;
         return queue.findFirstByZoneIdAndRequesterIdOrderByCreatedAtDescIdDesc(zoneId, userId)
                 .map(
                         q ->

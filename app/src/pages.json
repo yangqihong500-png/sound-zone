@@ -19,6 +19,13 @@
       }
     },
     {
+      "path": "pages/auth/account",
+      "style": {
+        "navigationBarTitleText": "Account",
+        "navigationStyle": "custom"
+      }
+    },
+    {
       "path": "pages/zone/detail",
       "style": {
         "navigationBarTitleText": "Zone",
@@ -82,7 +89,7 @@
   },
   "tabBar": {
     "color": "#999999",
-    "selectedColor": "#3B6EA8",
+    "selectedColor": "#1C1C1E",
     "backgroundColor": "#FFFFFF",
     "borderStyle": "black",
     "list": [

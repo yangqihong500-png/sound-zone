@@ -9,4 +9,8 @@ import java.util.*;
 
 public interface AuthSessionRepository extends JpaRepository<AuthSession, Long> {
     Optional<AuthSession> findByTokenHashAndExpiresAtAfter(String hash, LocalDateTime now);
+
+    void deleteByTokenHash(String hash);
+
+    void deleteByUserId(Long userId);
 }

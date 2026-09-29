@@ -26,7 +26,7 @@
         <text class="bind-row__track">♪ {{ bindTrack }}</text>
       </view>
 
-      <label class="consent"><checkbox :checked="trainingConsent" @click="trainingConsent = !trainingConsent" color="#3B6EA8" />Use photo to improve recommendations (optional)</label>
+      <label class="consent"><checkbox :checked="trainingConsent" @click="trainingConsent = !trainingConsent" color="#1C1C1E" />Use photo to improve recommendations (optional)</label>
       <text class="consent-note">Shared right away. You can withdraw it later.</text>
       <!-- 双按钮：跳过图片 / 上传图片（决议 D9） -->
       <view class="actions">
@@ -191,8 +191,8 @@ function onSkip() {
     justify-content: center;
     border: 1rpx solid rgba(255,255,255,.68);
     border-radius: 50%;
-    background: $sz-primary;
-    box-shadow: 0 10rpx 24rpx rgba(59,110,168,.2);
+    background: $sz-control;
+    box-shadow: 0 10rpx 24rpx rgba(0,0,0,.14);
     color: #ffffff;
     font-size: 48rpx;
     line-height: 1;
@@ -217,7 +217,7 @@ function onSkip() {
 
   &__track {
     font-size: $sz-font-sm;
-    color: $sz-accent;
+    color: $sz-control;
   }
 }
 
@@ -236,17 +236,17 @@ function onSkip() {
     }
 
     &--ghost {
-      border: 1rpx solid $sz-primary-border;
-      background-color: $sz-primary-soft;
-      color: $sz-primary;
+      border: 1rpx solid $sz-control-border;
+      background-color: $sz-control-soft;
+      color: $sz-control;
       font-weight: 600;
     }
 
     &--primary {
-      background-color: $sz-primary;
+      background-color: $sz-brand;
       color: #ffffff;
       font-weight: 600;
-      box-shadow: 0 12rpx 28rpx rgba(59,110,168,.2);
+      box-shadow: 0 12rpx 28rpx rgba(29,78,216,.2);
     }
 
     &--disabled {

@@ -18,7 +18,7 @@
         </template>
         <template v-else-if="kind === 'following'">
           <view class="following-user">
-            <view class="following-user__avatar" :style="{ backgroundColor: entry.avatarColor || '#3B6EA8' }">
+            <view class="following-user__avatar" :style="{ backgroundColor: entry.avatarColor || '#A8B8C8' }">
               <text class="following-user__initial">{{ userInitial(entry.name) }}</text>
             </view>
             <text class="following-user__name">{{ entry.name }}</text>
@@ -99,9 +99,9 @@ const openChat = (userId) => uni.navigateTo({ url: `/pages/message/chat?userId=$
 .row--following { flex-wrap: nowrap; gap: 20rpx; }
 .secondary { display: block; width: 100%; font-size: 21rpx; font-weight: 400; color: $sz-text-secondary; }
 .empty { display: block; text-align: center; padding: 60rpx; color: $sz-text-tertiary; }
-.small { margin: 0; border: 1rpx solid $sz-primary-border; border-radius: 999rpx; background: $sz-primary-soft; color: $sz-primary; font-size: 21rpx; font-weight: 600; }
+.small { margin: 0; border: 1rpx solid $sz-control-border; border-radius: 999rpx; background: $sz-control-soft; color: $sz-control; font-size: 21rpx; font-weight: 600; }
 .row__actions { display: flex; flex-shrink: 0; align-items: center; gap: 12rpx; }
-.small--message { border-color: rgba(255,255,255,.68); background: $sz-primary; box-shadow: 0 8rpx 20rpx rgba(59,110,168,.18); color: #fff; }
+.small--message { border-color: rgba(255,255,255,.68); background: $sz-control; box-shadow: 0 8rpx 20rpx rgba(0,0,0,.14); color: #fff; }
 .section-label { margin: 40rpx 0 22rpx; font-size: 27rpx; font-weight: 600; }
 .image-entry { margin-bottom: $sz-gap-md; }
 

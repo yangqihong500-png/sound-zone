@@ -1,6 +1,11 @@
 <template>
   <view class="home">
     <view class="home__brand-bar">
+      <view class="home__logo" aria-hidden="true">
+        <view class="home__logo-bar home__logo-bar--short" />
+        <view class="home__logo-bar home__logo-bar--tall" />
+        <view class="home__logo-bar home__logo-bar--medium" />
+      </view>
       <text class="home__brand">SoundZone</text>
     </view>
 
@@ -186,9 +191,31 @@ function goDiscover() { uni.pageScrollTo({ selector: '.feed', duration: 300 }) }
   margin: 0 8rpx 14rpx;
   padding-top: calc(var(--status-bar-height) + 20rpx);
   align-items: center;
+  gap: 12rpx;
+}
+.home__logo {
+  width: 44rpx;
+  height: 44rpx;
+  flex: 0 0 44rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4rpx;
+  border: 1rpx solid rgba(255,255,255,.72);
+  border-radius: 13rpx;
+  background: $sz-brand;
+  box-shadow: 0 7rpx 18rpx rgba(29,78,216,.2), inset 0 1rpx 0 rgba(255,255,255,.24);
+}
+.home__logo-bar {
+  width: 4rpx;
+  border-radius: 999rpx;
+  background: #fff;
+  &--short { height: 12rpx; }
+  &--tall { height: 26rpx; }
+  &--medium { height: 18rpx; }
 }
 .home__brand {
-  color: #0b1028;
+  color: $sz-text;
   font-size: 46rpx;
   font-weight: 800;
   letter-spacing: -1.2rpx;
@@ -197,10 +224,10 @@ function goDiscover() { uni.pageScrollTo({ selector: '.feed', duration: 300 }) }
 .home__search {
   height: 72rpx; display: flex; align-items: center; gap: 12rpx;
   margin: 0 8rpx 40rpx; padding: 0 24rpx; box-sizing: border-box;
-  border: 1rpx solid $sz-primary-border; border-radius: 24rpx;
+  border: 1rpx solid $sz-control-border; border-radius: 24rpx;
   background: rgba(255,255,255,.76); box-shadow: 0 10rpx 28rpx rgba(30,55,84,.05);
 }
-.home__search-icon { font-size: 38rpx; line-height: 1; color: $sz-primary; }
+.home__search-icon { font-size: 38rpx; line-height: 1; color: $sz-text-secondary; }
 .home__search-input { flex: 1; font-size: 28rpx; color: $sz-text; }
 .home__placeholder { color: rgba(28,28,30,.35); font-weight: 300; }
 .eyebrow { color: rgba(74,74,76,.62); font-size: 21rpx; font-weight: 600; letter-spacing: 2.5rpx; }
@@ -211,13 +238,13 @@ function goDiscover() { uni.pageScrollTo({ selector: '.feed', duration: 300 }) }
 .peek-card__image, .peek-card__scrim { position: absolute; inset: 0; width: 100%; height: 100%; }
 .peek-card__scrim { background: linear-gradient(to top, rgba(0,0,0,.5), transparent 75%); }
 .peek-card text { position: absolute; bottom: 12rpx; left: 12rpx; right: 12rpx; color: #fff; font-size: 18rpx; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.peek-more { display: flex; align-items: center; justify-content: center; background: $sz-primary-soft; color: $sz-primary; font-size: 20rpx; font-weight: 600; }
+.peek-more { display: flex; align-items: center; justify-content: center; background: $sz-control-soft; color: $sz-control; font-size: 20rpx; font-weight: 600; }
 .feed__heading { display: flex; align-items: center; justify-content: space-between; margin: 0 8rpx 20rpx; }
 .feed__count { color: $sz-text-tertiary; font-size: 21rpx; }
 .scene-bar { width: 100%; white-space: nowrap; margin-bottom: 24rpx; }
 .scene-bar__inner { display: inline-flex; gap: 12rpx; padding: 3rpx 2rpx; }
 .scene-bar__item { flex-shrink: 0; border: 1rpx solid transparent; border-radius: 999rpx; padding: 10rpx 24rpx; color: $sz-text-secondary; background: rgba(255,255,255,.82); font-size: 23rpx; font-weight: 500; }
-.scene-bar__item--active { background: $sz-primary; color: #fff; }
+.scene-bar__item--active { background: $sz-control; color: #fff; }
 .feed__grid { display: flex; align-items: flex-start; gap: 22rpx; }
 .feed__column { display: flex; flex: 1; min-width: 0; flex-direction: column; gap: 22rpx; }
 .feed__column--offset { margin-top: 36rpx; }
@@ -241,7 +268,7 @@ function goDiscover() { uni.pageScrollTo({ selector: '.feed', duration: 300 }) }
   gap: 12rpx;
   margin: 0 8rpx 10rpx;
   padding: 0 20rpx;
-  border: 1rpx solid $sz-primary-border;
+  border: 1rpx solid $sz-control-border;
   border-radius: 22rpx;
   background: rgba(255,255,255,.82);
 }

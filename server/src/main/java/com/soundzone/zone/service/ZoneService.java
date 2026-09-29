@@ -165,6 +165,8 @@ public class ZoneService {
     }
 
     public ZoneDetailDTO createZone(ZoneCreateRequest req, Long userId) {
+        if (req.scene() == null || req.scene().isBlank())
+            throw new BizException(ResultCode.PARAM_INVALID, "请选择场景");
         if (req.trackIds() == null
                 || req.trackIds().size() != 3
                 || new HashSet<>(req.trackIds()).size() != req.trackIds().size())
@@ -173,9 +175,7 @@ public class ZoneService {
             throw new BizException(ResultCode.PARAM_INVALID, "番茄钟将在后续阶段开放");
         Zone zone = new Zone();
         zone.setName(req.name().strip());
-        zone.setScene(
-                normalizeScene(
-                        req.scene() == null || req.scene().isBlank() ? "音乐" : req.scene()));
+        zone.setScene(normalizeScene(req.scene()));
         zone.setHost(
                 users.findById(userId)
                         .orElseThrow(() -> new BizException(ResultCode.USER_NOT_FOUND)));

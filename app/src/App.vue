@@ -10,7 +10,7 @@ onLaunch(() => {
 <style lang="scss">
 /**
  * 全局样式 v3（App.vue 中的 style 不允许使用 scoped）
- * 视觉规范：V1 蓝白撞色 + H 柔和钢蓝 + 中性玻璃拟态
+ * 视觉规范：中性黑白交互 + 少量品牌蓝 + 中性玻璃拟态
  * 注意：backdrop-filter 仅 H5 端生效，小程序端自动降级为半透明+软阴影（docs/04 风险表）
  */
 page {
@@ -69,17 +69,17 @@ button::after { border: none; }
   padding: 4rpx 16rpx;
   border-radius: 999rpx;
   font-size: $sz-font-xs;
-  background-color: $sz-primary-soft;
+  background-color: $sz-control-soft;
   color: $sz-text-secondary;
 }
 
 /* 胶囊选中态：主题色轻高亮 */
 .sz-tag--active {
-  background-color: $sz-accent;
+  background-color: $sz-control;
   color: #ffffff;
 }
 
-/* 通用操作层级：主操作为 H 蓝实体，次操作为浅蓝胶囊，禁用态保持中性灰。 */
+/* 通用操作使用黑白层级；品牌蓝由创建、上传等特定组件单独使用。 */
 .sz-btn-primary,
 .sz-btn-secondary {
   box-sizing: border-box;
@@ -90,15 +90,15 @@ button::after { border: none; }
 
 .sz-btn-primary {
   border: 1rpx solid rgba(255, 255, 255, 0.66);
-  background-color: $sz-primary;
-  box-shadow: 0 12rpx 28rpx rgba(59, 110, 168, 0.22);
+  background-color: $sz-control;
+  box-shadow: 0 12rpx 28rpx rgba(0, 0, 0, 0.16);
   color: #ffffff;
 }
 
 .sz-btn-secondary {
-  border: 1rpx solid $sz-primary-border;
-  background-color: $sz-primary-soft;
-  color: $sz-primary;
+  border: 1rpx solid $sz-control-border;
+  background-color: $sz-control-soft;
+  color: $sz-control;
 }
 
 .sz-btn-primary[disabled],
@@ -120,7 +120,7 @@ button::after { border: none; }
   height: 64px !important;
   box-sizing: border-box;
   overflow: visible;
-  border: 1px solid rgba(59, 110, 168, 0.1) !important;
+  border: 1px solid rgba(0, 0, 0, 0.08) !important;
   border-radius: 22px !important;
   background: rgba(255, 255, 255, 0.88) !important;
   backdrop-filter: blur(28px) saturate(120%) !important;
@@ -193,8 +193,8 @@ button::after { border: none; }
   justify-content: center;
   border: 1px solid rgba(255, 255, 255, 0.72);
   border-radius: 50%;
-  background: $sz-primary;
-  box-shadow: 0 8px 18px rgba(59, 110, 168, 0.28);
+  background: $sz-brand;
+  box-shadow: 0 8px 18px rgba(29, 78, 216, 0.28);
   color: #ffffff !important;
   font-size: 32px !important;
   font-weight: 300;

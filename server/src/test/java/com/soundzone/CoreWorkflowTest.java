@@ -152,6 +152,7 @@ class CoreWorkflowTest {
                         "sz_direct_message",
                         "sz_follow",
                         "sz_auth_session",
+                        "sz_user_credential",
                         "sz_user")) jdbc.update("DELETE FROM " + table);
         clock.set(Instant.parse("2026-09-25T10:00:00Z"));
         host = user("域主");
@@ -228,6 +229,8 @@ class CoreWorkflowTest {
 
     @Test
     void initialOrderAndFilteringAreValidatedAtomically() {
+        songs.forEach(song -> song.setDurationSec(200));
+        tracks.saveAllAndFlush(songs);
         var ids = List.of(songs.get(2).getId(), songs.get(0).getId(), songs.get(1).getId());
         var zone = zones.createZone(request("PUBLIC", null, "BAN", Set.of("电子"), ids), host.getId());
         assertEquals(ids.get(0), zone.nowPlaying().trackId());
@@ -271,13 +274,13 @@ class CoreWorkflowTest {
     }
 
     @Test
-    void quickCreateUsesSafeDefaultsAndRequiresExactlyThreeTracks() {
+    void quickCreateRequiresSceneAndExactlyThreeTracksWhileKeepingOtherSafeDefaults() {
         var ids = songs.subList(0, 3).stream().map(Track::getId).toList();
         var zone =
                 zones.createZone(
                         new ZoneCreateRequest(
                                 "随便听听",
-                                null,
+                                "自习",
                                 null,
                                 ids,
                                 null,
@@ -289,7 +292,7 @@ class CoreWorkflowTest {
                                 null),
                         host.getId());
 
-        assertEquals("音乐", zone.scene());
+        assertEquals("自习", zone.scene());
         assertEquals("PUBLIC", zone.visibility());
         assertEquals("NONE", zone.filterMode());
         assertTrue(zone.tags().isEmpty());
@@ -303,8 +306,26 @@ class CoreWorkflowTest {
                 () ->
                         zones.createZone(
                                 new ZoneCreateRequest(
-                                        "四首不允许",
+                                        "没有场景",
                                         null,
+                                        null,
+                                        ids,
+                                        null,
+                                        null,
+                                        null,
+                                        null,
+                                        null,
+                                        null,
+                                        null),
+                                listener.getId()));
+
+        assertThrows(
+                BizException.class,
+                () ->
+                        zones.createZone(
+                                new ZoneCreateRequest(
+                                        "四首不允许",
+                                        "自习",
                                         null,
                                         songs.stream().map(Track::getId).toList(),
                                         null,
@@ -321,7 +342,7 @@ class CoreWorkflowTest {
                         zones.createZone(
                                 new ZoneCreateRequest(
                                         "不限制不能带标签",
-                                        null,
+                                        "自习",
                                         null,
                                         ids,
                                         null,
@@ -530,6 +551,41 @@ class CoreWorkflowTest {
         assertEquals(ZoneStatus.ENDED, zoneRepo.findById(z.id()).orElseThrow().getStatus());
         assertEquals(
                 QueueStatus.STOPPED, queueRepo.findById(added.itemId()).orElseThrow().getStatus());
+    }
+
+    @Test
+    void emptyQueueImmediatelyWaivesRequesterCooldown() {
+        var z = create();
+        join(z.id(), listener.getId());
+        queue.requestSong(z.id(), new SongRequest(songs.get(3).getId(), null), listener.getId());
+        assertEquals(300, queue.cooldownRemainSeconds(z.id(), listener.getId()));
+
+        clock.advance(40);
+        playback.tick(z.id());
+        assertNull(zones.getDetail(z.id(), host.getId()).nowPlaying());
+        assertEquals(0, queue.cooldownRemainSeconds(z.id(), listener.getId()));
+
+        var refill =
+                queue.requestSong(
+                        z.id(), new SongRequest(songs.get(0).getId(), null), listener.getId());
+        assertEquals("PLAYING", refill.status());
+    }
+
+    @Test
+    void guestCanUpgradeInPlaceAndLogBackIntoTheSameAccount() {
+        var guest = sessions.guest();
+        var registered = sessions.register("Demo_User", "secure-pass-123", guest.token());
+        assertEquals(guest.userId(), registered.userId());
+        assertFalse(registered.guest());
+        assertFalse(sessions.current(registered.token()).guest());
+
+        sessions.logout(registered.token());
+        assertThrows(BizException.class, () -> sessions.authenticate(registered.token()));
+        var loggedIn = sessions.login("demo_user", "secure-pass-123");
+        assertEquals(guest.userId(), loggedIn.userId());
+        assertFalse(loggedIn.guest());
+        assertThrows(
+                BizException.class, () -> sessions.login("demo_user", "wrong-password"));
     }
 
     @Test

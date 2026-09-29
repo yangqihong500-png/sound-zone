@@ -1,6 +1,6 @@
 -- ============================================================================
 -- 同频 SoundZone · MySQL 8 表结构
--- 说明：新库基线（21 张业务表）。旧库必须按顺序执行 migrations 下的版本脚本。
+-- 说明：新库基线（22 张业务表）。旧库必须按顺序执行 migrations 下的版本脚本。
 --       JPA 字段初值与数据库 DEFAULT 分开维护，启动使用 ddl-auto=validate。
 --
 -- 使用：空库执行本脚本；已有库执行版本化迁移，不要重建业务表。
@@ -241,6 +241,16 @@ CREATE TABLE IF NOT EXISTS sz_auth_session (
   expires_at DATETIME(6) NOT NULL, created_at DATETIME(6) NOT NULL,
   UNIQUE KEY uk_session_token (token_hash),
   CONSTRAINT fk_session_user FOREIGN KEY (user_id) REFERENCES sz_user(id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+CREATE TABLE IF NOT EXISTS sz_user_credential (
+  id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  user_id BIGINT NOT NULL,
+  login_name VARCHAR(32) NOT NULL,
+  password_hash VARCHAR(256) NOT NULL,
+  created_at DATETIME(6) NOT NULL,
+  UNIQUE KEY uk_credential_user (user_id),
+  UNIQUE KEY uk_credential_login (login_name),
+  CONSTRAINT fk_credential_user FOREIGN KEY (user_id) REFERENCES sz_user(id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 CREATE TABLE IF NOT EXISTS sz_track_collection (
   id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,

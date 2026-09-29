@@ -193,7 +193,7 @@ function goBack() {
 
   &--mine &__bubble {
     border-radius: 28rpx 28rpx 8rpx 28rpx;
-    background: $sz-primary;
+    background: $sz-control;
     color: #ffffff;
   }
 
@@ -252,7 +252,7 @@ function goBack() {
     margin: 0;
     padding: 10rpx 28rpx;
     border-radius: 999rpx;
-    background: $sz-primary;
+    background: $sz-control;
     color: #ffffff;
     font-size: 23rpx;
     font-weight: 600;

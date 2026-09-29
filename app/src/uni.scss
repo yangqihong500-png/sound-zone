@@ -1,7 +1,7 @@
 /**
  * uni.scss —— 全局设计令牌（Design Tokens）v3
  * 由框架自动注入每个组件的 <style lang="scss">，无需手动 import。
- * 视觉方向：V1 蓝白撞色 + H 柔和钢蓝；封面保持原色，品牌蓝仅用于操作与选中态。
+ * 视觉方向：中性黑白界面 + 少量品牌蓝；封面保持原色。
  */
 
 /* ========== 基础色：黑白灰低饱和冷调 ========== */
@@ -15,12 +15,14 @@ $sz-text: #1c1c1e;                       /* 主文字：黑 */
 $sz-text-secondary: #4a4a4c;             /* 次级：深灰 */
 $sz-text-tertiary: rgba(0, 0, 0, 0.45);  /* 提示：半透明黑 */
 
-/* ========== 强调色 ========== */
-$sz-primary: #3b6ea8;                         /* H 柔和钢蓝：实体主操作 */
-$sz-primary-soft: rgba(59, 110, 168, 0.12);  /* 选中底与轻提示 */
-$sz-primary-muted: rgba(59, 110, 168, 0.24); /* 次级选中态 */
-$sz-primary-border: rgba(59, 110, 168, 0.34);
-$sz-accent: #3b6ea8;                          /* 图标、链接与即时反馈 */
+/* ========== 品牌与操作色分工 ========== */
+$sz-brand: #1d4ed8;                        /* 仅用于 Logo、创建、上传等品牌动作 */
+$sz-brand-soft: rgba(29, 78, 216, 0.10);
+$sz-brand-border: rgba(29, 78, 216, 0.28);
+$sz-control: #1c1c1e;                      /* 普通按钮、选中态和进度 */
+$sz-control-soft: rgba(0, 0, 0, 0.055);
+$sz-control-muted: rgba(0, 0, 0, 0.12);
+$sz-control-border: rgba(0, 0, 0, 0.14);
 
 /* ========== 莫兰迪主题色（按域主题，低饱和） ========== */
 $sz-morandi-study: #a8b8c8;   /* 学习域：浅灰蓝 */
