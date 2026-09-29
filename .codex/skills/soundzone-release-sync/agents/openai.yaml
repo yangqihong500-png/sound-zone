@@ -1,0 +1,4 @@
+interface:
+  display_name: "SoundZone Release Sync"
+  short_description: "Safely publish SoundZone changes and verify the live site"
+  default_prompt: "Use $soundzone-release-sync to publish the completed SoundZone changes and verify GitHub and the public site."
