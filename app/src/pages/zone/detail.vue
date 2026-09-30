@@ -50,6 +50,7 @@
         </view>
         <view class="now-playing__info">
           <text class="now-playing__eyebrow">正在同步播放</text>
+          <text class="now-playing__session">本次已共听 {{ formatSessionDuration(sessionListeningSeconds) }}</text>
           <text class="now-playing__title">{{ zone.nowPlaying.title }}</text>
           <text class="now-playing__artist" @click="goUserHome(zone.nowPlaying.userId)">{{ zone.nowPlaying.artist }} · uploaded by @{{ zone.nowPlaying.by }}</text>
           <text v-if="zone.nowPlaying.attribution" class="now-playing__source">{{ zone.nowPlaying.attribution }}</text>
@@ -169,6 +170,7 @@ const showSongPopup = ref(false)
 const showImagePopup = ref(false)
 const cooldown = ref(0)
 const progress = ref(0)
+const sessionListeningSeconds = ref(0)
 const password = ref('')
 const needsPassword = ref(false)
 const joining = ref(false)
@@ -220,6 +222,7 @@ let cooldownUntil = 0
 let refreshing = false
 let collectBusy = false
 let unloaded = false
+let lastSessionTick = 0
 
 onLoad((option) => {
   zoneId = Number(option.id)
@@ -229,8 +232,13 @@ onLoad((option) => {
   setPlaybackEndedHandler(onTrackEnded)
   enterZone()
   timer = setInterval(() => {
+    const now = Date.now()
     cooldown.value = Math.max(0, Math.ceil((cooldownUntil - Date.now()) / 1000))
     if (zone.value?.nowPlaying) progress.value = positionSeconds() / zone.value.nowPlaying.durationSec * 100
+    if (lastSessionTick && playback.playing && playback.itemId && playback.itemId === zone.value?.nowPlaying?.itemId) {
+      sessionListeningSeconds.value += Math.min(2, Math.max(0, Math.floor((now - lastSessionTick) / 1000)))
+    }
+    lastSessionTick = now
   }, 1000)
 })
 onShow(() => { if (zone.value) refresh() })
@@ -244,6 +252,8 @@ async function enterZone() {
     const data = await joinZone(zoneId, { inviteCode, password: password.value || null })
     if (unloaded) { await leaveZone(zoneId); return }
     zone.value = data
+    sessionListeningSeconds.value = 0
+    lastSessionTick = Date.now()
     needsPassword.value = false
     syncPlayer(data, started)
     await refreshCooldown()
@@ -287,6 +297,8 @@ function endSession(message) {
   zone.value = null
   entryMessage.value = message
   needsPassword.value = false
+  sessionListeningSeconds.value = 0
+  lastSessionTick = 0
 }
 function showGlow() {
   glowing.value = false
@@ -295,6 +307,13 @@ function showGlow() {
   glowTimer = setTimeout(() => { glowing.value = false }, 1800)
 }
 function onUploadSong() { if (!cooldown.value) showSongPopup.value = true }
+function formatSessionDuration(seconds = 0) {
+  const minutes = Math.floor(Math.max(0, seconds) / 60)
+  if (minutes < 60) return `${minutes} 分钟`
+  const hours = Math.floor(minutes / 60)
+  const rest = minutes % 60
+  return rest ? `${hours} 小时 ${rest} 分钟` : `${hours} 小时`
+}
 async function onSongUploaded(item) {
   if (!zone.value) return
   zone.value.imageCandidate = item
@@ -679,6 +698,7 @@ function paletteFromPixels(pixels) {
     color: $sz-text;
   }
   &__eyebrow { display: block; font-size: 19rpx; font-weight: 600; color: $sz-text-secondary; margin-bottom: 8rpx; }
+  &__session { display: block; margin: -3rpx 0 9rpx; color: rgba(11,35,72,.52); font-size: 18rpx; }
   &__title {
     display: block;
     padding-right: 52rpx;

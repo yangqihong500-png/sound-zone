@@ -58,4 +58,9 @@ public class UserController {
     public Result<?> moments() {
         return Result.ok(moments.mine(current.id()));
     }
+
+    @GetMapping("/me/listening-summary")
+    public Result<?> listeningSummary() {
+        return Result.ok(users.listeningSummary(current.id()));
+    }
 }

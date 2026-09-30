@@ -46,6 +46,7 @@ export const reactMoment = (id, type) => put(`/moments/${id}/reaction`, { type }
 export const collectTrack = (zoneId, itemId, active) => put(`/zones/${zoneId}/collection`, { itemId, active })
 export const removeCollection = (trackId) => del(`/users/me/collections/${trackId}`)
 export const getCurrentUser = () => get('/sessions/me')
+export const getListeningSummary = () => get('/users/me/listening-summary')
 export const getUserProfile = (userId) => get(`/users/${userId}/profile`)
 export const followUser = (id) => post(`/users/${id}/follow`)
 export const unfollowUser = (id) => del(`/users/${id}/follow`)

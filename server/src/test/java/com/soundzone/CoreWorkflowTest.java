@@ -655,6 +655,40 @@ class CoreWorkflowTest {
     }
 
     @Test
+    void listeningSummaryCountsOnlyServerConfirmedPlaybackAndIsPrivateToCurrentUser()
+            throws Exception {
+        songs.forEach(song -> song.setDurationSec(200));
+        tracks.saveAllAndFlush(songs);
+        var zone = create();
+        join(zone.id(), listener.getId());
+
+        clock.advance(20);
+        zones.heartbeat(zone.id(), listener.getId(), zone.nowPlaying().itemId(), true);
+        clock.advance(20);
+        zones.heartbeat(zone.id(), listener.getId(), zone.nowPlaying().itemId(), false);
+
+        var summary = userService.listeningSummary(listener.getId());
+        assertEquals(20, summary.totalSeconds());
+        assertEquals(20, summary.todaySeconds());
+        assertEquals(20, summary.last7DaysSeconds());
+        assertEquals(7, summary.daily().size());
+        assertEquals(20, summary.daily().get(6).seconds());
+        assertEquals(zone.id(), summary.topZones().get(0).zoneId());
+        assertEquals(zone.name(), summary.topZones().get(0).name());
+
+        mvc.perform(
+                        get("/users/me/listening-summary")
+                                .header(
+                                        "Authorization",
+                                        "Bearer " + tokenFor(listener.getId())))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.totalSeconds").value(20))
+                .andExpect(jsonPath("$.data.daily.length()").value(7))
+                .andExpect(jsonPath("$.data.topZones[0].zoneId").value(zone.id()));
+        mvc.perform(get("/users/me/listening-summary")).andExpect(status().isUnauthorized());
+    }
+
+    @Test
     void emptyQueueImmediatelyWaivesRequesterCooldown() {
         var z = create();
         join(z.id(), listener.getId());

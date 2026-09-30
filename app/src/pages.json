@@ -74,6 +74,14 @@
       }
     },
     {
+      "path": "pages/user/listening",
+      "style": {
+        "navigationBarTitleText": "Listening Time",
+        "navigationBarBackgroundColor": "#F7F9FC",
+        "navigationBarTextStyle": "black"
+      }
+    },
+    {
       "path": "pages/message/chat",
       "style": {
         "navigationBarTitleText": "Messages",
