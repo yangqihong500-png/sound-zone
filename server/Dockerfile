@@ -17,7 +17,7 @@ RUN apt-get update \
 WORKDIR /app
 COPY --from=build /workspace/target/sound-zone-server-*.jar /app/app.jar
 
-RUN mkdir -p /data/images /data/audio \
+RUN mkdir -p /data/images /data/audio /data/covers \
     && chown -R soundzone:soundzone /app /data
 
 USER soundzone

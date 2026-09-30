@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "tracks": [
+    {
+      "key": "public-domain-demo-001",
+      "title": "示例公版曲目",
+      "artist": "作者或演奏者",
+      "audioFile": "public-domain-demo-001.mp3",
+      "coverFile": "public-domain-demo-001.jpg",
+      "coverColor": "#9FB7C9",
+      "durationSec": 180,
+      "tags": ["纯音乐", "舒缓"],
+      "attribution": "作者或演奏者 · Public Domain",
+      "licenseReference": "https://填写可核验的授权或公版来源页面"
+    }
+  ]
+}

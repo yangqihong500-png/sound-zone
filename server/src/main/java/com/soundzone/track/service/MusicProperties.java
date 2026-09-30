@@ -44,6 +44,8 @@ public class MusicProperties {
         /** 放在 soundzone.audio-directory 下的本地音频文件名；与 streamUrl 二选一。 */
         private String audioFile;
         private String coverUrl;
+        /** 放在 soundzone.cover-directory 下的本地封面文件名；与 coverUrl 二选一。 */
+        private String coverFile;
         private String coverColor = "#9FE1CB";
         private int durationSec = 240;
         private Set<String> tags = new HashSet<>();

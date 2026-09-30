@@ -13,9 +13,17 @@ target/
 .vscode/
 
 # 本地图片与测试数据
-server/data/
+server/data/*
+!server/data/README.md
+!server/data/catalog.example.json
+!server/data/audio/
+server/data/audio/*
+!server/data/audio/.gitkeep
+!server/data/covers/
+server/data/covers/*
+!server/data/covers/.gitkeep
 .env.local
-data/
+/data/
 backups/
 
 # 部署密钥与生产环境变量；示例文件保留在仓库中

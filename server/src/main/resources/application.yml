@@ -69,8 +69,10 @@ soundzone:
   active-window-minutes: 30
   presence-grace-seconds: 90
   image-directory: ${SOUNDZONE_IMAGE_DIRECTORY:./data/images}
-  # 可把自有授权 MP3/M4A 放在这里，再通过 music.local-catalog 的 audio-file 登记。
+  # 本地公版／授权曲库：音频、封面和 catalog.json 分开保存，启动时校验并导入。
   audio-directory: ${SOUNDZONE_AUDIO_DIRECTORY:./data/audio}
+  cover-directory: ${SOUNDZONE_COVER_DIRECTORY:./data/covers}
+  local-catalog-file: ${SOUNDZONE_LOCAL_CATALOG_FILE:./data/catalog.json}
   admin-key: ${SOUNDZONE_ADMIN_KEY:}
   allowed-origins: ${SOUNDZONE_ALLOWED_ORIGINS:http://localhost:*,http://127.0.0.1:*}
   music:

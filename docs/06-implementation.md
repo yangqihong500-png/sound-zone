@@ -49,7 +49,7 @@
 
 - Audius 默认开启：空关键词取热门歌曲、非空关键词搜索，公开可播放且未加访问门槛的结果落入 `sz_track`；60 秒短缓存减少重复请求。
 - Audius 播放地址由官方 `/v1/tracks/{id}/stream` 生成，前端使用 uni-app 音频组件播放。可配置公开 API Key；服务端 Bearer Token 不下发给客户端。
-- `soundzone.music.local-catalog` 导入已获授权的小曲库，可选择 HTTPS 音频或 `soundzone.audio-directory` 下的自有文件，并强制合法标签和授权引用；`soundzone.music.streams` 继续兼容旧的“曲目 ID → HTTPS 音源”映射。
+- `soundzone.music.local-catalog` 与 `soundzone.local-catalog-file` 合并导入已获授权的小曲库；目录清单可引用 `soundzone.audio-directory` 下的音频和 `soundzone.cover-directory` 下的封面，并强制校验文件、时长、合法标签、署名与授权引用。`soundzone.music.streams` 继续兼容旧的“曲目 ID → HTTPS 音源”映射。
 - HOST/TME 曲目带 externalId 时仍可调用 `globalThis.SoundZoneHost.player`，但该分支只是未来可选扩展。
 - 未配置音源的 MOCK 曲目会明确显示“尚未接入可播放音源”，不会用无关声音冒充音乐。
 - H5 音频按服务端 startedAt、请求中点时钟偏差对齐，并明确显示连接、首播授权、播放和重试状态。浏览器要求首播手势时，“开始同步播放”仅完成授权并对齐此刻，不提供暂停或切歌；网络失败会重建音频上下文。

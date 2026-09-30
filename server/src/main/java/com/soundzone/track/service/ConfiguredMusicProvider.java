@@ -6,14 +6,12 @@ import lombok.RequiredArgsConstructor;
 
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
-import org.springframework.web.util.UriUtils;
-
-import java.nio.charset.StandardCharsets;
 
 @Service
 @RequiredArgsConstructor
 public class ConfiguredMusicProvider implements MusicProvider {
     private final MusicProperties properties;
+    private final LocalCatalogRegistry localCatalog;
 
     @Override
     public PlaybackSource resolve(Track track) {
@@ -24,16 +22,10 @@ public class ConfiguredMusicProvider implements MusicProvider {
         }
         if ("LOCAL_LICENSED".equals(track.getSource()) && track.getExternalId() != null) {
             MusicProperties.LocalTrack configured =
-                    properties.getLocalCatalog().stream()
-                            .filter(t -> track.getExternalId().equals(t.getKey()))
-                            .findFirst()
-                            .orElse(null);
+                    localCatalog.find(track.getExternalId()).orElse(null);
             String url = configured == null ? null : configured.getStreamUrl();
             if (!isHttps(url) && configured != null && StringUtils.hasText(configured.getAudioFile()))
-                url =
-                        "/media/audio/"
-                                + UriUtils.encodePathSegment(
-                                        configured.getAudioFile(), StandardCharsets.UTF_8);
+                url = localCatalog.audioUrl(configured);
             if (url != null)
                 return new PlaybackSource(
                         "STREAM", "LOCAL_LICENSED", track.getExternalId(), url, null);

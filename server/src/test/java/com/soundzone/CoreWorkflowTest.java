@@ -426,6 +426,38 @@ class CoreWorkflowTest {
     }
 
     @Test
+    void localCatalogMediaServesCoverAndRangeAudio() throws Exception {
+        var cover =
+                java.nio.file.Path.of(
+                        System.getProperty("java.io.tmpdir"),
+                        "soundzone-test-covers",
+                        "local-cover.jpg");
+        var audio =
+                java.nio.file.Path.of(
+                        System.getProperty("java.io.tmpdir"),
+                        "soundzone-test-audio",
+                        "local-audio.mp3");
+        byte[] coverBytes = new byte[] {1, 2, 3, 4};
+        byte[] audioBytes = new byte[] {10, 20, 30, 40, 50};
+        Files.createDirectories(cover.getParent());
+        Files.createDirectories(audio.getParent());
+        Files.write(cover, coverBytes);
+        Files.write(audio, audioBytes);
+        try {
+            mvc.perform(get("/media/covers/local-cover.jpg"))
+                    .andExpect(status().isOk())
+                    .andExpect(content().bytes(coverBytes));
+            mvc.perform(get("/media/audio/local-audio.mp3").header("Range", "bytes=1-3"))
+                    .andExpect(status().isPartialContent())
+                    .andExpect(header().string("Content-Range", "bytes 1-3/5"))
+                    .andExpect(content().bytes(new byte[] {20, 30, 40}));
+        } finally {
+            Files.deleteIfExists(cover);
+            Files.deleteIfExists(audio);
+        }
+    }
+
+    @Test
     void trackSearchFindsAllPublicZonesAndRanksCurrentBeforeQueuedAndPreset() {
         var first = create();
         var second =

@@ -29,6 +29,8 @@ mvn test
 |---|---|
 | `SOUNDZONE_IMAGE_DIRECTORY` | 持久图片目录，默认相对工作目录的 `./data/images` |
 | `SOUNDZONE_AUDIO_DIRECTORY` | 自有演示音频目录，默认相对工作目录的 `./data/audio` |
+| `SOUNDZONE_COVER_DIRECTORY` | 本地曲库封面目录，默认相对工作目录的 `./data/covers` |
+| `SOUNDZONE_LOCAL_CATALOG_FILE` | 本地曲库清单，默认相对工作目录的 `./data/catalog.json` |
 | `SOUNDZONE_ADMIN_KEY` | 指标与授权导出的运营凭证；为空时关闭 |
 | `SOUNDZONE_ALLOWED_ORIGINS` | HTTP / WebSocket 允许的来源；默认仅 localhost 与 127.0.0.1 |
 | `SOUNDZONE_GUEST_ENABLED` | 独立游客入口，默认 `true` |
@@ -65,23 +67,27 @@ soundzone:
         license-reference: contract:SZ-DEMO-2026-001
 ```
 
-本地文件方案不依赖 Audius。先把至少 3 首 MP3／M4A 文件复制到 `server/data/audio/`，再把曲目逐条配置为 `audio-file`；文件名只能位于该目录根级，支持 `mp3 / m4a / aac / ogg / wav`。例如：
+本地文件方案不依赖 Audius。开发时使用 `server/data/`，其中 `audio/` 放 MP3 等音频、`covers/` 放封面，再把 `catalog.example.json` 复制为 `catalog.json` 并登记曲目。公开部署使用项目根目录的 `data/`，目录结构相同。文件名只能位于对应目录根级，音频支持 `mp3 / m4a / aac / ogg / wav`，封面支持 `jpg / jpeg / png / webp`。
 
-```yaml
-soundzone:
-  music:
-    local-catalog:
-      - key: my-demo-001
-        title: 我的演示音乐
-        artist: 演示作者
-        audio-file: my-demo-001.mp3
-        duration-sec: 180
-        tags: ["纯音乐", "舒缓"]
-        attribution: 自有演示音频
-        license-reference: owner:self
+```json
+{
+  "version": 1,
+  "tracks": [{
+    "key": "public-domain-demo-001",
+    "title": "公版演示音乐",
+    "artist": "作者或演奏者",
+    "audioFile": "public-domain-demo-001.mp3",
+    "coverFile": "public-domain-demo-001.jpg",
+    "coverColor": "#9FB7C9",
+    "durationSec": 180,
+    "tags": ["纯音乐", "舒缓"],
+    "attribution": "作者或演奏者 · Public Domain",
+    "licenseReference": "https://可核验的公版或授权来源页面"
+  }]
+}
 ```
 
-登记后重启后端，曲目会幂等进入曲库，前端可像 Audius 曲目一样建域和点歌；登记达到 3 首后，常驻演示域会优先使用本地曲库。后端以同源静态媒体提供文件并支持浏览器 Range 请求；不要把无授权的商业歌曲放入公开部署。
+登记后重启后端，清单会和 `soundzone.music.local-catalog` 配置合并并幂等进入曲库，前端可像 Audius 曲目一样搜索、建域和点歌；登记达到 3 首后，常驻演示域会优先使用本地曲库。后端以同源静态媒体提供音频和封面，音频支持浏览器 Range 请求。音频、封面和实际 `catalog.json` 默认不提交到 Git，部署同步也会保留服务器的 `data/`；不要放入版权未知的商业歌曲。
 
 若启动提示 `Port 8080 was already in use`，先访问 `http://127.0.0.1:8080/api/actuator/health`：返回 `{"status":"UP"}` 说明后端已经运行，不要重复启动。若提示 `Communications link failure`，先在项目根目录执行 `docker compose up -d mysql` 并等待容器状态变为 healthy。
 

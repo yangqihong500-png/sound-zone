@@ -17,6 +17,8 @@ soundzone:
   scheduler-enabled: false
   image-directory: ${java.io.tmpdir}/soundzone-test-images
   audio-directory: ${java.io.tmpdir}/soundzone-test-audio
+  cover-directory: ${java.io.tmpdir}/soundzone-test-covers
+  local-catalog-file: ${java.io.tmpdir}/soundzone-test-catalog-not-present.json
   admin-key: soundzone-test-operator
   music:
     audius:

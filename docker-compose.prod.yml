@@ -61,12 +61,13 @@ services:
       SOUNDZONE_ADMIN_KEY: ${SOUNDZONE_ADMIN_KEY:?set SOUNDZONE_ADMIN_KEY}
       SOUNDZONE_IMAGE_DIRECTORY: /data/images
       SOUNDZONE_AUDIO_DIRECTORY: /data/audio
+      SOUNDZONE_COVER_DIRECTORY: /data/covers
+      SOUNDZONE_LOCAL_CATALOG_FILE: /data/catalog.json
       SOUNDZONE_AUDIUS_ENABLED: ${SOUNDZONE_AUDIUS_ENABLED:-true}
       SOUNDZONE_AUDIUS_API_KEY: ${SOUNDZONE_AUDIUS_API_KEY:-}
       SOUNDZONE_AUDIUS_BEARER_TOKEN: ${SOUNDZONE_AUDIUS_BEARER_TOKEN:-}
     volumes:
-      - ./data/images:/data/images
-      - ./data/audio:/data/audio
+      - ./data:/data
     healthcheck:
       test: ["CMD", "curl", "--fail", "--silent", "http://127.0.0.1:8080/api/actuator/health"]
       interval: 10s

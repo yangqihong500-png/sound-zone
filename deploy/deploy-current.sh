@@ -40,7 +40,7 @@ ssh -i "$DEPLOY_SSH_KEY" \
   -o StrictHostKeyChecking=yes \
   "$DEPLOY_USER@$DEPLOY_HOST" \
   "set -eu; cd '$DEPLOY_PATH'; \
-   mkdir -p data/images data/audio backups; \
+   mkdir -p data/images data/audio data/covers backups; \
    sudo docker compose --env-file .env.production -f docker-compose.prod.yml build server; \
    sudo docker compose --env-file .env.production -f docker-compose.prod.yml build web; \
    sudo docker compose --env-file .env.production -f docker-compose.prod.yml up -d --remove-orphans; \
