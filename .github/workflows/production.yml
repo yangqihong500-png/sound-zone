@@ -98,6 +98,10 @@ jobs:
           ssh -p "$DEPLOY_PORT" "$DEPLOY_USER@$DEPLOY_HOST" \
             "cd '$DEPLOY_PATH' && \
              mkdir -p data/images data/audio data/covers backups && \
+             sudo chmod 755 data data/audio data/covers && \
+             sudo chown -R 10001:10001 data/images && \
+             sudo find data/audio data/covers -type f -exec chmod 644 {} + && \
+             if [ -f data/catalog.json ]; then sudo chmod 644 data/catalog.json; fi && \
              sudo docker compose --env-file .env.production -f docker-compose.prod.yml build server && \
              sudo docker compose --env-file .env.production -f docker-compose.prod.yml build web && \
              sudo docker compose --env-file .env.production -f docker-compose.prod.yml up -d --remove-orphans && \
