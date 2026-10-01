@@ -18,4 +18,7 @@ public interface TrackRepository extends JpaRepository<Track, Long> {
     Optional<Track> findFirstBySourceAndExternalId(String source, String externalId);
 
     List<Track> findTop50BySourceOrderByIdAsc(String source);
+
+    /** 常驻演示域需要读取完整的受控本地播放列表，不能被普通搜索的 50 首上限截断。 */
+    List<Track> findBySourceOrderByIdAsc(String source);
 }

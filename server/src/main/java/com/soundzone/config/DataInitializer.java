@@ -51,7 +51,7 @@ public class DataInitializer implements CommandLineRunner {
                             "考研自习室",
                             "自习",
                             "#A8B8C8",
-                            Set.of("舒缓"),
+                            Set.of("专注"),
                             "写完这一页再休息 ☕"),
                     new DemoZone(
                             "run-host",
@@ -65,14 +65,14 @@ public class DataInitializer implements CommandLineRunner {
                             "城市漫游电台",
                             "旅行",
                             "#D9CFB8",
-                            Set.of("舒缓"),
+                            Set.of("古典"),
                             "把路上的风景分享给你"),
                     new DemoZone(
                             "night-host",
                             "下班后的客厅",
                             "深夜",
                             "#C3B8D9",
-                            Set.of("流行", "说唱"),
+                            Set.of("情歌"),
                             "今天辛苦了，坐下来听一会儿"));
 
     private final UserRepository users;
@@ -92,7 +92,7 @@ public class DataInitializer implements CommandLineRunner {
         for (DemoUser spec : USERS) cast.put(spec.key(), upsertUser(spec));
 
         List<Track> localCatalog =
-                tracks.findTop50BySourceOrderByIdAsc("LOCAL_LICENSED").stream()
+                tracks.findBySourceOrderByIdAsc("LOCAL_LICENSED").stream()
                         .filter(t -> t.getExternalId() != null && !t.getTags().isEmpty())
                         .filter(durations::isAllowed)
                         .toList();
@@ -117,7 +117,7 @@ public class DataInitializer implements CommandLineRunner {
         for (int i = 0; i < ZONES.size(); i++) {
             DemoZone spec = ZONES.get(i);
             User host = cast.get(spec.hostKey());
-            List<Track> playlist = playlist(catalog, spec.preferredTags(), i * 2);
+            List<Track> playlist = selectPlaylist(catalog, spec.preferredTags(), i * 2);
             Zone zone = upsertZone(spec, host, playlist);
             ensureMembers(zone, host, listeners, i);
             ensurePlaylist(zone, host, playlist);
@@ -237,12 +237,14 @@ public class DataInitializer implements CommandLineRunner {
         moments.save(moment);
     }
 
-    private List<Track> playlist(List<Track> catalog, Set<String> preferred, int offset) {
+    static List<Track> selectPlaylist(
+            List<Track> catalog, Set<String> preferred, int offset) {
         List<Track> matches =
                 catalog.stream()
                         .filter(t -> t.getTags().stream().anyMatch(preferred::contains))
                         .toList();
-        List<Track> source = matches.size() >= 3 ? matches : catalog;
+        if (matches.size() >= 3) return new ArrayList<>(matches);
+        List<Track> source = catalog;
         List<Track> selected = new ArrayList<>();
         for (int i = 0; i < Math.min(4, source.size()); i++)
             selected.add(source.get((offset + i) % source.size()));
