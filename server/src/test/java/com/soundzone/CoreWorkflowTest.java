@@ -926,6 +926,30 @@ class CoreWorkflowTest {
     }
 
     @Test
+    void myUploadsAreRankedByLikesThenRecency() {
+        var z = create();
+        join(z.id(), listener.getId());
+        join(z.id(), stranger.getId());
+        Long first = z.nowPlaying().itemId();
+        Long second = z.queue().get(0).itemId();
+        Long third = z.queue().get(1).itemId();
+
+        queue.like(z.id(), first, listener.getId(), true);
+        queue.like(z.id(), second, listener.getId(), true);
+        queue.like(z.id(), second, stranger.getId(), true);
+
+        var uploads = userService.uploads(host.getId());
+        var ranked =
+                uploads.stream()
+                        .map(row -> (QueueItemDTO) row.get("item"))
+                        .toList();
+        assertEquals(
+                List.of(second, first, third),
+                ranked.stream().map(QueueItemDTO::itemId).toList());
+        assertEquals(List.of(2, 1, 0), ranked.stream().map(QueueItemDTO::likes).toList());
+    }
+
+    @Test
     void multipartFollowAndWithdrawalUseSessionIdentity() throws Exception {
         var z = create();
         String owner = tokenFor(host.getId());

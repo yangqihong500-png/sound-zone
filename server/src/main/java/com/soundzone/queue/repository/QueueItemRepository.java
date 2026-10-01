@@ -33,7 +33,8 @@ public interface QueueItemRepository extends JpaRepository<QueueItem, Long> {
     @Query("select coalesce(sum(q.likes), 0) from QueueItem q where q.requester.id = :userId")
     long sumLikesByRequesterId(Long userId);
 
-    List<QueueItem> findByRequesterIdOrderByCreatedAtDescIdDesc(Long userId);
+    /** 我的上传按收到的点赞数降序展示；点赞相同时，最近上传的排在前面。 */
+    List<QueueItem> findByRequesterIdOrderByLikesDescCreatedAtDescIdDesc(Long userId);
 
     List<QueueItem> findByZoneIdAndStatusIn(Long zoneId, List<QueueStatus> statuses);
 

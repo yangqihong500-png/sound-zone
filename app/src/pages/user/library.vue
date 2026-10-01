@@ -3,18 +3,36 @@
     <text v-if="loading" class="empty">Loading…</text>
     <text v-else-if="error" class="empty">{{ error }}</text>
     <template v-else>
+      <view v-if="kind === 'uploads' && entries.length" class="upload-ranking">
+        <text class="upload-ranking__heart">♥</text>
+        <text>Most liked first</text>
+      </view>
       <view
         v-for="entry in entries"
         :key="entry.id || entry.item?.itemId"
         class="sz-card row"
-        :class="{ 'row--favorite': kind === 'collections', 'row--following': kind === 'following' }"
+        :class="{ 'row--upload': kind === 'uploads', 'row--favorite': kind === 'collections', 'row--following': kind === 'following' }"
         @click="open(entry)"
       >
         <template v-if="kind === 'zones'">
           <text>{{ entry.name }}</text><text class="secondary">{{ sceneName(entry.scene) }} · {{ entry.status === 'ENDED' ? 'Ended' : 'Live' }} · {{ entry.visibility === 'PRIVATE' ? 'Private' : 'Public' }}</text>
         </template>
         <template v-else-if="kind === 'uploads'">
-          <text>{{ entry.item.title }} · {{ entry.item.artist }}</text><text class="secondary">{{ entry.zoneName }} · {{ statusNames[entry.item.status] }}</text>
+          <view class="upload-track">
+            <view class="upload-track__cover">
+              <image v-if="entry.item.coverUrl" class="upload-track__cover-image" :src="entry.item.coverUrl" mode="aspectFill" />
+              <text v-else class="upload-track__note">♪</text>
+            </view>
+            <view class="upload-track__copy">
+              <text class="upload-track__title">{{ entry.item.title }}</text>
+              <text class="upload-track__artist">{{ entry.item.artist }}</text>
+              <text class="upload-track__meta">{{ entry.zoneName }} · {{ statusNames[entry.item.status] }}</text>
+            </view>
+            <view class="upload-track__likes" aria-label="Likes received">
+              <text class="upload-track__heart">♥</text>
+              <text class="upload-track__like-count">{{ entry.item.likes || 0 }}</text>
+            </view>
+          </view>
         </template>
         <template v-else-if="kind === 'following'">
           <view class="following-user">
@@ -94,6 +112,7 @@ const openChat = (userId) => uni.navigateTo({ url: `/pages/message/chat?userId=$
 <style lang="scss" scoped>
 .library { min-height: 100vh; box-sizing: border-box; padding: 32rpx; background: $sz-bg; }
 .row { margin-bottom: 18rpx; display: flex; flex-wrap: wrap; gap: 12rpx; align-items: center; justify-content: space-between; border-radius: 28rpx; font-size: 27rpx; font-weight: 500; }
+.row--upload { flex-wrap: nowrap; padding: 22rpx; }
 .row--favorite { flex-wrap: nowrap; gap: 20rpx; }
 .row--favorite .small { flex-shrink: 0; }
 .row--following { flex-wrap: nowrap; gap: 20rpx; }
@@ -104,6 +123,76 @@ const openChat = (userId) => uni.navigateTo({ url: `/pages/message/chat?userId=$
 .small--message { border-color: rgba(255,255,255,.68); background: $sz-control; box-shadow: 0 8rpx 20rpx rgba(0,0,0,.14); color: #fff; }
 .section-label { margin: 40rpx 0 22rpx; font-size: 27rpx; font-weight: 600; }
 .image-entry { margin-bottom: $sz-gap-md; }
+
+.upload-ranking {
+  margin: 0 4rpx 18rpx;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8rpx;
+  color: $sz-text-tertiary;
+  font-size: 20rpx;
+
+  &__heart { color: $sz-control; font-size: 22rpx; }
+}
+
+.upload-track {
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  align-items: center;
+  gap: 18rpx;
+
+  &__cover {
+    width: 104rpx;
+    height: 104rpx;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    border-radius: 20rpx;
+    background: linear-gradient(145deg, #A8B8C8, #C3B8D9);
+  }
+
+  &__cover-image { width: 100%; height: 100%; }
+  &__note { color: rgba(255,255,255,.9); font-size: 38rpx; }
+
+  &__copy {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 4rpx;
+  }
+
+  &__title,
+  &__artist,
+  &__meta {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  &__title { color: $sz-text; font-size: 27rpx; font-weight: 650; }
+  &__artist { color: $sz-text-secondary; font-size: 22rpx; font-weight: 450; }
+  &__meta { color: $sz-text-tertiary; font-size: 19rpx; font-weight: 400; }
+
+  &__likes {
+    min-width: 68rpx;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 7rpx;
+    color: $sz-control;
+    font-variant-numeric: tabular-nums;
+  }
+
+  &__heart { font-size: 27rpx; }
+  &__like-count { font-size: 24rpx; font-weight: 650; }
+}
 
 .following-user {
   display: flex;

@@ -150,7 +150,7 @@ public class UserService {
     }
 
     public List<Map<String, Object>> uploads(Long id) {
-        return queue.findByRequesterIdOrderByCreatedAtDescIdDesc(id).stream()
+        return queue.findByRequesterIdOrderByLikesDescCreatedAtDescIdDesc(id).stream()
                 .map(
                         q ->
                                 Map.<String, Object>of(
