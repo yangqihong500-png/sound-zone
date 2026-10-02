@@ -79,9 +79,9 @@ import { ref, computed, watch, nextTick, onMounted, onBeforeUnmount } from 'vue'
 import { onShow, onPageScroll, onTabItemTap } from '@dcloudio/uni-app'
 import { SCENES, getZonesByScene, resolveMediaUrl } from '@/api/mock.js'
 import ZoneCard from '@/components/zone-card/zone-card.vue'
+import { sceneLabel as sceneDisplayLabel } from '@/constants/scenes.js'
 
 const scenes = SCENES
-const labels = { 全部: 'All', 音乐: 'Music', 自习: 'Study', 健身: 'Fitness', 旅行: 'Travel', 日系: 'J-Pop', 电子: 'Electronic', 工作: 'Work', 手工: 'Craft', 深夜: 'Late Night' }
 const currentScene = ref('全部')
 const zones = ref([])
 const keyword = ref('')
@@ -178,7 +178,7 @@ function switchScene(scene) {
   currentScene.value = scene
   loadZones()
 }
-function sceneLabel(scene) { return labels[scene] || scene }
+function sceneLabel(scene) { return scene === '全部' ? 'All' : sceneDisplayLabel(scene) }
 function goZone(id) { uni.navigateTo({ url: '/pages/zone/detail?id=' + id }) }
 // "More ↓"：滚动到本页的 explore zones 部分（往下滑即 discover 内容）
 function goDiscover() { uni.pageScrollTo({ selector: '.feed', duration: 300 }) }

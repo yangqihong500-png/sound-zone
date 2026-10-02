@@ -76,6 +76,7 @@
 import { ref } from 'vue'
 import { onLoad, onShow } from '@dcloudio/uni-app'
 import { getMyList, unfollowUser, removeCollection } from '@/api/mock.js'
+import { sceneLabel } from '@/constants/scenes.js'
 import MomentCard from '@/components/moment-card/moment-card.vue'
 const kind = ref('zones')
 const entries = ref([])
@@ -84,8 +85,7 @@ const loading = ref(true)
 const error = ref('')
 const names = { zones: 'My Zones', uploads: 'My Uploads', following: 'Following', collections: 'Favorites' }
 const statusNames = { PLAYING: 'Playing', QUEUED: 'Queued', PRESET: 'Preloaded', PLAYED: 'Played', STOPPED: 'Zone ended', REMOVED: 'History' }
-const scenes = { 音乐: 'Music', 自习: 'Study', 健身: 'Fitness', 旅行: 'Travel', 日系: 'J-Pop', 电子: 'Electronic', 工作: 'Work', 手工: 'Craft', 深夜: 'Late Night' }
-function sceneName(scene) { return scenes[scene] || scene }
+function sceneName(scene) { return sceneLabel(scene) }
 function userInitial(name) { return (name || '?').trim().charAt(0).toUpperCase() || '?' }
 onLoad((option) => { kind.value = names[option.kind] ? option.kind : 'zones'; uni.setNavigationBarTitle({ title: names[kind.value] }) })
 onShow(load)

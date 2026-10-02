@@ -31,6 +31,7 @@
 <script setup>
 import { computed, ref, watch } from 'vue'
 import { resolveMediaUrl } from '@/api/mock.js'
+import { getSceneMeta } from '@/constants/scenes.js'
 
 const props = defineProps({
   zone: { type: Object, required: true },
@@ -49,7 +50,10 @@ const themes = {
   工作: { label: 'Work', icon: '⌘', color: '#A8B8C8' },
   手工: { label: 'Craft', icon: '◇', color: '#D9CFB8' },
 }
-const theme = computed(() => themes[props.zone.scene] || { label: props.zone.scene || 'Zone', icon: '◌', color: '#A8B8C8' })
+const theme = computed(() => {
+  const meta = getSceneMeta(props.zone.scene)
+  return themes[props.zone.scene] || { label: meta.label, icon: meta.icon, color: '#A8B8C8' }
+})
 const sceneLabel = computed(() => {
   if (props.featured) return theme.value.label
   return { 'Late Night': 'Night', Electronic: 'Electro' }[theme.value.label] || theme.value.label

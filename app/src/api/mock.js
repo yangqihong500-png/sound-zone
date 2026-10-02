@@ -2,8 +2,9 @@
 import { get, post, put, del, apiError } from './request.js'
 import { API_BASE } from './constants.js'
 import { ensureSession, token } from './session.js'
+import { QUICK_SCENE_VALUES } from '@/constants/scenes.js'
 
-export const SCENES = ['全部', '音乐', '自习', '健身', '旅行', '日系', '电子', '工作', '手工', '深夜']
+export const SCENES = ['全部', ...QUICK_SCENE_VALUES]
 export const getTagCatalog = () => get('/tracks/tags', {}, { auth: false })
 export const getActiveZones = (keyword = '') => get('/zones/active', { keyword }, { auth: false })
 export const getZonesByScene = (scene, keyword = '') => get('/zones/active', { scene, keyword }, { auth: false })
