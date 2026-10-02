@@ -69,6 +69,7 @@
         </view>
       </template>
     </template>
+    <suspended-zone-player />
   </view>
 </template>
 <script setup>

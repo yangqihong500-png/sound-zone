@@ -1,6 +1,7 @@
 <template>
   <view class="entry">
     <text class="entry__text">Opening Create Zone…</text>
+    <suspended-zone-player />
   </view>
 </template>
 

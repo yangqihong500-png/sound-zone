@@ -156,10 +156,19 @@
 <script setup>
 import { ref, computed, watch } from 'vue'
 import { onLoad, onShow, onUnload } from '@dcloudio/uni-app'
-import { getZoneDetail, getCooldown, collectTrack, joinZone, leaveZone, getInvite, reportZone } from '@/api/mock.js'
+import { getCooldown, collectTrack, joinZone, leaveZone, getInvite, reportZone } from '@/api/mock.js'
 import { session } from '@/api/session.js'
-import { playback, syncPlayer, positionSeconds, unlockAudio, setPlaybackEndedHandler } from '@/services/player.js'
-import { attachZone, leaveCurrentZone } from '@/services/zone-session.js'
+import { playback, syncPlayer, positionSeconds, unlockAudio } from '@/services/player.js'
+import {
+  activeZoneId,
+  attachZone,
+  detachZoneView,
+  isZoneSuspended,
+  leaveCurrentZone,
+  refreshActiveZone,
+  resumeZone,
+  suspendCurrentZone,
+} from '@/services/zone-session.js'
 import QueueItem from '@/components/queue-item/queue-item.vue'
 import MomentCard from '@/components/moment-card/moment-card.vue'
 import UploadSongPopup from '@/components/upload-song-popup/upload-song-popup.vue'
@@ -217,7 +226,6 @@ let returnHome = false
 let timer = null
 let glowTimer = null
 let likeTimer = null
-let transitionTimer = null
 let cooldownUntil = 0
 let refreshing = false
 let collectBusy = false
@@ -229,8 +237,8 @@ onLoad((option) => {
   inviteCode = option.inviteCode || null
   returnHome = option.returnHome === '1'
   if (!Number.isInteger(zoneId) || zoneId <= 0) { entryMessage.value = '域链接无效'; return }
-  setPlaybackEndedHandler(onTrackEnded)
-  enterZone()
+  if (activeZoneId() === zoneId) restoreZone()
+  else enterZone()
   timer = setInterval(() => {
     const now = Date.now()
     cooldown.value = Math.max(0, Math.ceil((cooldownUntil - Date.now()) / 1000))
@@ -242,12 +250,44 @@ onLoad((option) => {
   }, 1000)
 })
 onShow(() => { if (zone.value) refresh() })
-onUnload(() => { unloaded = true; setPlaybackEndedHandler(null); clearInterval(timer); clearTimeout(glowTimer); clearTimeout(likeTimer); clearTimeout(transitionTimer); leaveCurrentZone() })
+onUnload(() => {
+  unloaded = true
+  clearInterval(timer)
+  clearTimeout(glowTimer)
+  clearTimeout(likeTimer)
+  if (isZoneSuspended(zoneId)) detachZoneView()
+  else leaveCurrentZone()
+})
+
+function sessionHandlers() {
+  return { changed: onSessionChanged, ended: endSession, glow: showGlow }
+}
+
+function onSessionChanged(data) {
+  applySnapshot(data)
+  refreshCooldown().catch(() => {})
+}
+
+async function restoreZone() {
+  joining.value = true
+  try {
+    const data = await resumeZone(zoneId, sessionHandlers())
+    if (!data || unloaded) return
+    applySnapshot(data)
+    sessionListeningSeconds.value = 0
+    lastSessionTick = Date.now()
+    await refreshCooldown()
+  } catch (e) {
+    entryMessage.value = e.message
+  } finally { joining.value = false }
+}
 
 async function enterZone() {
   if (joining.value) return
   joining.value = true
   try {
+    // 同一客户端只保留一个活动域；先完整退出已悬挂域，再加入新域，避免新音源被旧会话清理。
+    if (activeZoneId() && activeZoneId() !== zoneId) await leaveCurrentZone()
     const started = Date.now()
     const data = await joinZone(zoneId, { inviteCode, password: password.value || null })
     if (unloaded) { await leaveZone(zoneId); return }
@@ -258,7 +298,7 @@ async function enterZone() {
     syncPlayer(data, started)
     await refreshCooldown()
     if (unloaded) { await leaveZone(zoneId); return }
-    attachZone(zoneId, { changed: refresh, ended: endSession, glow: showGlow })
+    attachZone(zoneId, sessionHandlers(), data)
   } catch (e) {
     needsPassword.value = [3006, 3007].includes(e.code)
     entryMessage.value = e.message
@@ -268,29 +308,22 @@ async function refresh() {
   if (refreshing || !zone.value || unloaded) return
   refreshing = true
   try {
-    const started = Date.now()
-    const data = await getZoneDetail(zoneId)
-    if (unloaded || !zone.value) return
-    if (data.stateVersion >= zone.value.stateVersion) { zone.value = data; syncPlayer(data, started) }
+    const data = await refreshActiveZone()
+    if (data) applySnapshot(data)
     await refreshCooldown()
   } catch (e) {
     if ([1002, 1003, 2001, 3004].includes(e.code)) endSession(e.message)
   } finally { refreshing = false }
 }
+
+function applySnapshot(data) {
+  if (unloaded || !data) return
+  if (!zone.value || data.stateVersion >= zone.value.stateVersion) zone.value = data
+}
 async function refreshCooldown() {
   const remaining = await getCooldown(zoneId)
   cooldownUntil = Date.now() + remaining * 1000
   cooldown.value = remaining
-}
-async function onTrackEnded() {
-  // getDetail 会在域行锁内结算自然结束并选择 FIFO 下一首，随后 syncPlayer 换源。
-  const endedItemId = playback.itemId
-  await refresh()
-  // 音频文件时长与曲库元数据可能有不足一秒的误差，保留一次短重试避免卡在尾帧。
-  if (!unloaded && zone.value?.nowPlaying?.itemId === endedItemId) {
-    clearTimeout(transitionTimer)
-    transitionTimer = setTimeout(refresh, 1200)
-  }
 }
 function endSession(message) {
   leaveCurrentZone()
@@ -339,10 +372,15 @@ async function onCollect() {
 }
 function onMore() {
   const own = zone.value.hostId === session.userId
-  const options = ['退出域', '举报', ...(own ? ['编辑域信息'] : []), ...(own && zone.value.visibility === 'PRIVATE' ? ['复制邀请链接'] : [])]
+  const options = ['悬挂域并继续播放', '退出域', '举报', ...(own ? ['编辑域信息'] : []), ...(own && zone.value.visibility === 'PRIVATE' ? ['复制邀请链接'] : [])]
   uni.showActionSheet({ itemList: options, success: async ({ tapIndex }) => {
     const action = options[tapIndex]
-    if (action === '退出域') { await leaveCurrentZone(); goBack() }
+    if (action === '悬挂域并继续播放') {
+      if (!suspendCurrentZone(zone.value)) return
+      toast('域已悬挂，可边浏览边听')
+      goHome()
+    }
+    else if (action === '退出域') { await leaveCurrentZone(); goBack() }
     else if (action === '举报') uni.showModal({ title: '举报', editable: true, placeholderText: '请说明举报原因', success: async (res) => {
       if (!res.confirm) return
       try { await reportZone(zoneId, res.content); toast('举报已提交') } catch (e) { toast(e.message) }

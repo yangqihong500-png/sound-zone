@@ -47,6 +47,7 @@
 
       <text class="privacy-note">只统计域内正在同步播放且由服务端确认的有效共听时间</text>
     </template>
+    <suspended-zone-player />
   </view>
 </template>
 

@@ -78,6 +78,7 @@
       <text>{{ stateMessage }}</text>
       <button v-if="loadFailed" class="sz-btn-primary" @click="load">Retry</button>
     </view>
+    <suspended-zone-player />
   </view>
 </template>
 

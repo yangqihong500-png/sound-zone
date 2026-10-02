@@ -12,10 +12,16 @@ let lastSeek = 0
 let currentStreamUrl = ''
 let loadTimer = null
 let endedHandler = null
+let activityHandler = null
 
 /** 由域详情注册；后台音频自然结束后立即读取服务端权威快照并衔接下一首。 */
 export function setPlaybackEndedHandler(handler) {
   endedHandler = typeof handler === 'function' ? handler : null
+}
+
+/** 后台音频进度事件用于在系统节流普通定时器时继续维持域心跳。 */
+export function setPlaybackActivityHandler(handler) {
+  activityHandler = typeof handler === 'function' ? handler : null
 }
 
 export function resetPlayer() {
@@ -109,6 +115,9 @@ function prepareAudio(version, tryAutoplay) {
     playback.message = '正在衔接下一首…'
     endedHandler?.()
   })
+  audio.onTimeUpdate?.(() => {
+    if (version === generation && playback.playing) activityHandler?.()
+  })
   audio.onError((error) => {
     if (version !== generation) return
     clearTimeout(loadTimer)
@@ -134,6 +143,7 @@ function prepareAudio(version, tryAutoplay) {
   audio.coverImgUrl = current?.coverUrl || ''
   audio.startTime = positionSeconds()
   // #endif
+  updateSystemMediaMetadata()
   audio.src = currentStreamUrl
   loadTimer = setTimeout(() => {
     if (version !== generation || playback.playing) return
@@ -146,6 +156,20 @@ function detachAudioEvents(context) {
   context.offEnded?.()
   context.offError?.()
   context.offCanplay?.()
+  context.offTimeUpdate?.()
+}
+
+function updateSystemMediaMetadata() {
+  // #ifdef H5
+  if (!('mediaSession' in navigator) || typeof MediaMetadata === 'undefined') return
+  const artwork = current?.coverUrl ? [{ src: absoluteStreamUrl(current.coverUrl) }] : []
+  navigator.mediaSession.metadata = new MediaMetadata({
+    title: current?.title || 'SoundZone',
+    artist: current?.artist || 'SoundZone',
+    album: '同频 SoundZone',
+    artwork,
+  })
+  // #endif
 }
 function audioErrorMessage(error) {
   const detail = error?.errMsg || error?.message || ''

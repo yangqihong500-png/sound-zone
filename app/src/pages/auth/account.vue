@@ -27,6 +27,7 @@
       <button class="submit" :disabled="busy || !ready" @click="submit">{{ busy ? 'Please wait…' : (mode === 'login' ? 'Log in' : 'Create account') }}</button>
       <text class="privacy">Passwords are stored as salted PBKDF2 hashes. Production deployment must use HTTPS.</text>
     </view>
+    <suspended-zone-player />
   </view>
 </template>
 

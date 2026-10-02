@@ -60,6 +60,7 @@
         @click="send"
       >Send</button>
     </view>
+    <suspended-zone-player />
   </view>
 </template>
 

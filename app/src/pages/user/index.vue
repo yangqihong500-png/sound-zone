@@ -37,6 +37,7 @@
         <text class="menu__arrow">›</text>
       </view>
     </view>
+    <suspended-zone-player />
   </view>
 </template>
 

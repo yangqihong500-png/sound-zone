@@ -63,6 +63,7 @@
         </view>
       </view>
     </view>
+    <suspended-zone-player />
   </view>
 </template>
 

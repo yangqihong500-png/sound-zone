@@ -201,6 +201,7 @@
         :disabled="submitting || !canCreate"
       >{{ submitting ? 'Saving…' : (editId ? 'Save Changes' : 'Create Zone') }}</button>
     </view>
+    <suspended-zone-player />
   </view>
 </template>
 

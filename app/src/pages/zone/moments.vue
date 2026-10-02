@@ -37,6 +37,7 @@
       <view v-if="!moments.length" class="empty">No moments shared in the last 30 minutes.</view>
       <view class="bottom-spacer" />
     </scroll-view>
+    <suspended-zone-player />
   </view>
 </template>
 

@@ -70,6 +70,7 @@
       </view>
       <view v-else class="empty">No live zones match your search.</view>
     </view>
+    <suspended-zone-player />
   </view>
 </template>
 
