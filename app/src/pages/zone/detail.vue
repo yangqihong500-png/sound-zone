@@ -21,14 +21,21 @@
       />
       <view class="detail__ambience-wash" />
     </view>
-    <!-- 顶部固定栏：与域背景连续，不另铺毛玻璃底层 -->
+    <!-- 顶部固定栏：返回即退出域；悬挂播放与更多操作保持独立 -->
     <view class="nav" :style="{ paddingTop: statusBarHeight + 'px' }">
       <view class="nav__back" @click="goBack">‹</view>
       <view class="nav__title">
         <text class="nav__name">{{ zone.name }}</text>
         <text class="nav__listeners">{{ zone.listeners }} listening now</text>
       </view>
-      <view class="nav__more" @click="onMore">···</view>
+      <view class="nav__actions">
+        <view class="nav__suspend" aria-label="悬挂播放" @click="onSuspend">
+          <view class="nav__suspend-icon">
+            <view class="nav__suspend-window" />
+          </view>
+        </view>
+        <view class="nav__more" @click="onMore">···</view>
+      </view>
     </view>
 
     <scroll-view class="detail__body" scroll-y>
@@ -372,16 +379,10 @@ async function onCollect() {
 }
 function onMore() {
   const own = zone.value.hostId === session.userId
-  const options = ['悬挂域并继续播放', '退出域', '举报', ...(own ? ['编辑域信息'] : []), ...(own && zone.value.visibility === 'PRIVATE' ? ['复制邀请链接'] : [])]
+  const options = ['举报', ...(own ? ['编辑域信息'] : []), ...(own && zone.value.visibility === 'PRIVATE' ? ['复制邀请链接'] : [])]
   uni.showActionSheet({ itemList: options, success: async ({ tapIndex }) => {
     const action = options[tapIndex]
-    if (action === '悬挂域并继续播放') {
-      if (!suspendCurrentZone(zone.value)) return
-      toast('域已悬挂，可边浏览边听')
-      goHome()
-    }
-    else if (action === '退出域') { await leaveCurrentZone(); goBack() }
-    else if (action === '举报') uni.showModal({ title: '举报', editable: true, placeholderText: '请说明举报原因', success: async (res) => {
+    if (action === '举报') uni.showModal({ title: '举报', editable: true, placeholderText: '请说明举报原因', success: async (res) => {
       if (!res.confirm) return
       try { await reportZone(zoneId, res.content); toast('举报已提交') } catch (e) { toast(e.message) }
     } })
@@ -400,6 +401,11 @@ function onMore() {
     }
   } })
 }
+function onSuspend() {
+  if (!suspendCurrentZone(zone.value)) return
+  toast('域已悬挂，可边浏览边听')
+  goHome()
+}
 function goMoments() { uni.navigateTo({ url: `/pages/zone/moments?id=${zoneId}` }) }
 function goMoment(momentId) { uni.navigateTo({ url: `/pages/zone/moment-detail?id=${momentId}` }) }
 function goUserHome(userId) {
@@ -408,6 +414,8 @@ function goUserHome(userId) {
   else uni.navigateTo({ url: `/pages/user/home?userId=${userId}` })
 }
 function goBack() {
+  // 返回始终代表离开当前域；悬挂播放只能通过右上角独立按钮触发。
+  leaveCurrentZone()
   // 创建成功或外部直达详情时没有可靠的上一页，直接回 Home。
   if (returnHome || getCurrentPages().length <= 1) {
     goHome()
@@ -659,6 +667,10 @@ function paletteFromPixels(pixels) {
   }
 
   &__title {
+    position: absolute;
+    left: 50%;
+    max-width: 430rpx;
+    transform: translateX(-50%);
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -673,6 +685,46 @@ function paletteFromPixels(pixels) {
   &__listeners {
     font-size: $sz-font-xs;
     color: $sz-text-tertiary;
+  }
+
+  &__actions {
+    display: flex;
+    align-items: center;
+    gap: 8rpx;
+    margin-left: auto;
+  }
+
+  &__suspend {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 60rpx;
+    height: 60rpx;
+    border: 1rpx solid rgba(70,91,124,.2);
+    border-radius: 50%;
+    background: rgba(255,255,255,.68);
+    box-shadow: 0 8rpx 24rpx rgba(48,74,108,.1);
+    backdrop-filter: blur(18px);
+    -webkit-backdrop-filter: blur(18px);
+  }
+
+  &__suspend-icon {
+    position: relative;
+    width: 30rpx;
+    height: 24rpx;
+    border: 3rpx solid #29456f;
+    border-radius: 5rpx;
+    box-sizing: border-box;
+  }
+
+  &__suspend-window {
+    position: absolute;
+    right: 3rpx;
+    bottom: 3rpx;
+    width: 10rpx;
+    height: 7rpx;
+    border-radius: 2rpx;
+    background: #29456f;
   }
 
   &__more {
