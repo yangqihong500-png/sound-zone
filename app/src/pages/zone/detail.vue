@@ -21,7 +21,7 @@
       />
       <view class="detail__ambience-wash" />
     </view>
-    <!-- 顶部毛玻璃固定栏：返回 / 域名+在线人数 / 更多（决议 D9） -->
+    <!-- 顶部固定栏：与域背景连续，不另铺毛玻璃底层 -->
     <view class="nav" :style="{ paddingTop: statusBarHeight + 'px' }">
       <view class="nav__back" @click="goBack">‹</view>
       <view class="nav__title">
@@ -638,7 +638,7 @@ function paletteFromPixels(pixels) {
   white-space: nowrap;
 }
 
-/* 顶部毛玻璃固定栏：轻透，模糊下方内容 */
+/* 顶部固定栏直接透出同一片氛围背景，避免底边出现色块接缝 */
 .nav {
   position: relative;
   display: flex;
@@ -648,9 +648,7 @@ function paletteFromPixels(pixels) {
   padding-bottom: 20rpx;
   padding-left: 32rpx;
   padding-right: 32rpx;
-  background: rgba(255,255,255,.16);
-  backdrop-filter: blur(28px) saturate(115%);
-  -webkit-backdrop-filter: blur(28px) saturate(115%);
+  background: transparent;
   z-index: 5;
 
   &__back {
