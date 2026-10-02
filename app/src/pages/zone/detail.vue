@@ -648,7 +648,6 @@ function paletteFromPixels(pixels) {
   padding-bottom: 20rpx;
   padding-left: 32rpx;
   padding-right: 32rpx;
-  border-bottom: 1rpx solid rgba(255,255,255,.46);
   background: rgba(255,255,255,.16);
   backdrop-filter: blur(28px) saturate(115%);
   -webkit-backdrop-filter: blur(28px) saturate(115%);
