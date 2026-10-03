@@ -20,6 +20,7 @@ public enum ResultCode {
     MOMENT_NOT_FOUND(2005, "图片分享不存在"),
     ENDPOINT_NOT_FOUND(2006, "接口不存在"),
     ZONE_COVER_NOT_FOUND(2007, "域封面不存在"),
+    PROFILE_COVER_NOT_FOUND(2008, "主页背景不存在"),
 
     ZONE_CREATE_TRACKS_NOT_ENOUGH(3001, "创建域至少需要 3 首歌"),
     SONG_BANNED_BY_ZONE(3002, "该歌曲的标签被本域禁止"),

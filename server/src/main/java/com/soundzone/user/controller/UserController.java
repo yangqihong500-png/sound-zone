@@ -8,6 +8,8 @@ import com.soundzone.user.service.UserService;
 import lombok.RequiredArgsConstructor;
 
 import org.springframework.web.bind.annotation.*;
+import org.springframework.http.MediaType;
+import org.springframework.web.multipart.MultipartFile;
 
 @RestController
 @RequestMapping("/users")
@@ -20,6 +22,11 @@ public class UserController {
     @GetMapping("/{id}/profile")
     public Result<?> profile(@PathVariable Long id) {
         return Result.ok(users.getProfile(id, current.id()));
+    }
+
+    @PostMapping(value = "/me/cover", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public Result<?> updateCover(@RequestParam("file") MultipartFile file) {
+        return Result.ok(users.updateCover(current.id(), file));
     }
 
     @PostMapping("/{id}/follow")

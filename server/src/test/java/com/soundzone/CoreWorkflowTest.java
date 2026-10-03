@@ -432,6 +432,51 @@ class CoreWorkflowTest {
     }
 
     @Test
+    void profileCoverCanBeUploadedAndViewedPubliclyButOnlyByItsOwner() throws Exception {
+        String ownerToken = tokenFor(host.getId());
+        mvc.perform(multipart("/users/me/cover").file(image()))
+                .andExpect(status().isUnauthorized());
+
+        var uploaded =
+                mvc.perform(
+                                multipart("/users/me/cover")
+                                        .file(image())
+                                        .header("Authorization", "Bearer " + ownerToken))
+                        .andExpect(status().isOk())
+                        .andExpect(jsonPath("$.code").value(0))
+                        .andReturn();
+        String coverUrl =
+                json.readTree(uploaded.getResponse().getContentAsString())
+                        .path("data")
+                        .path("coverUrl")
+                        .asText();
+        assertTrue(coverUrl.startsWith("/profile-covers/profile-"));
+        assertEquals(coverUrl, userService.getProfile(host.getId(), listener.getId()).coverUrl());
+        assertNull(userService.getProfile(listener.getId(), host.getId()).coverUrl());
+        mvc.perform(get(coverUrl))
+                .andExpect(status().isOk())
+                .andExpect(content().contentType("image/jpeg"))
+                .andExpect(header().string("X-Content-Type-Options", "nosniff"));
+        mvc.perform(get("/profile-covers/profile-invalid.jpg")).andExpect(status().isNotFound());
+
+        var replacement =
+                mvc.perform(
+                                multipart("/users/me/cover")
+                                        .file(image())
+                                        .header("Authorization", "Bearer " + ownerToken))
+                        .andExpect(status().isOk())
+                        .andReturn();
+        String replacementUrl =
+                json.readTree(replacement.getResponse().getContentAsString())
+                        .path("data")
+                        .path("coverUrl")
+                        .asText();
+        assertNotEquals(coverUrl, replacementUrl);
+        mvc.perform(get(coverUrl)).andExpect(status().isNotFound());
+        mvc.perform(get(replacementUrl)).andExpect(status().isOk());
+    }
+
+    @Test
     void localCatalogMediaServesCoverAndRangeAudio() throws Exception {
         var cover =
                 java.nio.file.Path.of(

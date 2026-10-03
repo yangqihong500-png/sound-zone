@@ -47,6 +47,22 @@ export const reactMoment = (id, type) => put(`/moments/${id}/reaction`, { type }
 export const collectTrack = (zoneId, itemId, active) => put(`/zones/${zoneId}/collection`, { itemId, active })
 export const removeCollection = (trackId) => del(`/users/me/collections/${trackId}`)
 export const getCurrentUser = () => get('/sessions/me')
+export async function uploadProfileCover(filePath) {
+  await ensureSession()
+  return new Promise((resolve, reject) => {
+    uni.uploadFile({
+      url: `${API_BASE}/users/me/cover`, filePath, name: 'file',
+      header: { Authorization: `Bearer ${token()}` },
+      success: (res) => {
+        try {
+          const body = JSON.parse(res.data)
+          body.code === 0 ? resolve(body.data) : reject(apiError(body))
+        } catch { reject(new Error('背景上传响应异常')) }
+      },
+      fail: () => reject(new Error('背景上传失败，请重试')),
+    })
+  })
+}
 export const getListeningSummary = () => get('/users/me/listening-summary')
 export const getUserProfile = (userId) => get(`/users/${userId}/profile`)
 export const followUser = (id) => post(`/users/${id}/follow`)

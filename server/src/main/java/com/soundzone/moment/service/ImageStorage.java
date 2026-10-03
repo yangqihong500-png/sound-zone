@@ -28,6 +28,11 @@ public class ImageStorage {
         return store(file, "cover-" + UUID.randomUUID() + ".jpg");
     }
 
+    /** 主页背景是用户主动公开的素材，与私密动态图片使用不同文件名前缀。 */
+    public String storeProfileCover(MultipartFile file) {
+        return store(file, "profile-" + UUID.randomUUID() + ".jpg");
+    }
+
     private String store(MultipartFile file, String key) {
         if (file == null || file.isEmpty() || file.getSize() > 5 * 1024 * 1024)
             throw new BizException(ResultCode.PARAM_INVALID, "请选择 5MB 内的 JPEG 或 PNG 图片");
@@ -98,6 +103,20 @@ public class ImageStorage {
         if (key == null || !key.matches("cover-[0-9a-f-]{36}\\.jpg"))
             throw new BizException(ResultCode.ZONE_COVER_NOT_FOUND);
         return resolveStoredKey(key);
+    }
+
+    public Path resolveProfileCover(String key) {
+        if (key == null || !key.matches("profile-[0-9a-f-]{36}\\.jpg"))
+            throw new BizException(ResultCode.PROFILE_COVER_NOT_FOUND);
+        return resolveStoredKey(key);
+    }
+
+    public void deleteProfileCover(String key) {
+        try {
+            Files.deleteIfExists(resolveProfileCover(key));
+        } catch (IOException | BizException ignored) {
+            /* 数据库已提交；旧版本文件可由后续存储清理回收。 */
+        }
     }
 
     private Path resolveStoredKey(String key) {

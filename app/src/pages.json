@@ -68,6 +68,13 @@
       }
     },
     {
+      "path": "pages/user/archive",
+      "style": {
+        "navigationBarTitleText": "声音档案",
+        "navigationStyle": "custom"
+      }
+    },
+    {
       "path": "pages/user/library",
       "style": {
         "navigationBarTitleText": "My Library"

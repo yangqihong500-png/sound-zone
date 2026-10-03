@@ -4,6 +4,7 @@ import com.soundzone.activity.repository.ActivityEventRepository;
 import com.soundzone.activity.service.ActivityService;
 import com.soundzone.common.*;
 import com.soundzone.feedback.repository.TrackCollectionRepository;
+import com.soundzone.moment.service.ImageStorage;
 import com.soundzone.moment.entity.MomentStatus;
 import com.soundzone.moment.repository.MomentRepository;
 import com.soundzone.queue.dto.QueueItemDTO;
@@ -19,6 +20,9 @@ import lombok.RequiredArgsConstructor;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.time.*;
 import java.util.*;
@@ -38,6 +42,7 @@ public class UserService {
     private final ActivityService activity;
     private final ActivityEventRepository activityEvents;
     private final Clock clock;
+    private final ImageStorage imageStorage;
 
     public UserProfileDTO getProfile(Long id, Long viewer) {
         var u = users.findById(id).orElseThrow(() -> new BizException(ResultCode.USER_NOT_FOUND));
@@ -45,12 +50,28 @@ public class UserService {
                 u.getId(),
                 u.getName(),
                 u.getAvatarColor(),
+                u.getCoverUrl(),
                 new UserProfileDTO.Stats(
                         queue.countByRequesterId(id),
                         queue.sumLikesByRequesterId(id),
                         moments.countByUserIdAndStatus(id, MomentStatus.NORMAL),
                         follows.countByFollowerId(id)),
                 follows.findByFollowerIdAndFolloweeId(viewer, id).isPresent());
+    }
+
+    public Map<String, String> updateCover(Long id, MultipartFile file) {
+        User user = users.lockById(id).orElseThrow(() -> new BizException(ResultCode.USER_NOT_FOUND));
+        String oldUrl = user.getCoverUrl();
+        String newUrl = "/profile-covers/" + imageStorage.storeProfileCover(file);
+        user.setCoverUrl(newUrl);
+        users.saveAndFlush(user);
+        if (oldUrl != null && oldUrl.startsWith("/profile-covers/")) {
+            String oldKey = oldUrl.substring("/profile-covers/".length());
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override public void afterCommit() { imageStorage.deleteProfileCover(oldKey); }
+            });
+        }
+        return Map.of("coverUrl", newUrl);
     }
 
     /** 汇总本人已由服务端心跳确认的共听时间；暂停、失联和歌曲不一致的区间不会进入统计。 */

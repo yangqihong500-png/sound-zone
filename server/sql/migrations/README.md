@@ -3,7 +3,7 @@
 ## 执行顺序
 
 1. 停止旧实例的写流量，备份实际业务库和图片持久目录。保留当前应用包与前端产物，记录表行数、旧字段和索引。
-2. 新库使用 `server/sql/schema.sql`（23 张业务表）。已有 v2 库在显式指定的数据库内依次执行 `V001__core_closure.sql`、`V002__independent_music_catalog.sql`、`V003__instant_moments.sql`、`V004__resident_demo_zones.sql`、`V005__direct_messages.sql`、`V006__password_accounts.sql`、`V007__immutable_zone_cover.sql`、`V008__in_app_notifications.sql`，不要重建表。
+2. 新库使用 `server/sql/schema.sql`（23 张业务表）。已有 v2 库在显式指定的数据库内依次执行 `V001__core_closure.sql`、`V002__independent_music_catalog.sql`、`V003__instant_moments.sql`、`V004__resident_demo_zones.sql`、`V005__direct_messages.sql`、`V006__password_accounts.sql`、`V007__immutable_zone_cover.sql`、`V008__in_app_notifications.sql`、`V009__profile_cover.sql`，不要重建表。
 3. 脚本逐项检查列、索引及外键是否已存在，可在中途失败修复后重跑。MySQL DDL 隐式提交，**不是一个可整体回滚的事务**。
 4. 新应用使用 `ddl-auto=validate` 启动；先验证身份、私密域、队列、收藏、图片、成员生命周期，再恢复写流量。
 5. 旧密码在成功的私密准入中生成摘要；过渡期保留旧列以便回滚，后续再经评估清理明文。新建域只存摘要。
@@ -24,6 +24,7 @@
 - V006 只新增独立账号凭据表；游客注册时在事务内绑定原用户，域、上传、收藏、关注和私信关系均保留。密码只存随机盐 PBKDF2 摘要。
 - V007 只为域增加可空封面地址；历史域仅在封面为空时按最早入队且有封面的歌曲回填，无法确定时继续使用场景色回退。
 - V008 只新增站内通知表；不会改写历史私信、队列、点赞或用户数据，新通知从发布后发生的业务事件开始记录。
+- V009 只新增用户表可空的公开背景地址；历史用户继续使用默认画面。上传图片重新编码去除元数据，私密动态图片仍需身份校验。
 
 ## 回滚
 

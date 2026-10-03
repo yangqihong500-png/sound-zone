@@ -28,6 +28,10 @@ public class User {
     @Column(nullable = false, length = 16)
     private String avatarColor = "#8C9BAB";
 
+    /** 用户主动上传的公开主页背景；未上传时前端显示默认唱片画面。 */
+    @Column(length = 512)
+    private String coverUrl;
+
     @Column(nullable = false, updatable = false)
     private LocalDateTime createdAt = LocalDateTime.now();
 }
