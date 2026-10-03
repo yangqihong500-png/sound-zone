@@ -8,10 +8,7 @@
       </view>
       <text class="home__brand">SoundZone</text>
       <view class="home__notification" aria-label="Notifications" @click="goNotifications">
-        <view class="home__bell">
-          <view class="home__bell-body" />
-          <view class="home__bell-clapper" />
-        </view>
+        <image class="home__notification-icon" src="/static/icons/bell.svg" mode="aspectFit" />
         <text v-if="unreadCount" class="home__notification-badge">{{ unreadCount > 9 ? '9+' : unreadCount }}</text>
       </view>
     </view>
@@ -251,37 +248,7 @@ function goDiscover() { uni.pageScrollTo({ selector: '.feed', duration: 300 }) }
   background: rgba(255,255,255,.78);
   box-shadow: 0 8rpx 22rpx rgba(30,55,84,.06);
 }
-.home__bell { position: relative; width: 27rpx; height: 29rpx; }
-.home__bell-body {
-  position: absolute;
-  left: 4rpx;
-  top: 2rpx;
-  width: 19rpx;
-  height: 20rpx;
-  border: 3rpx solid $sz-text;
-  border-bottom: 0;
-  border-radius: 14rpx 14rpx 5rpx 5rpx;
-  box-sizing: border-box;
-}
-.home__bell-body::after {
-  content: '';
-  position: absolute;
-  left: -6rpx;
-  right: -6rpx;
-  bottom: -5rpx;
-  height: 3rpx;
-  border-radius: 999rpx;
-  background: $sz-text;
-}
-.home__bell-clapper {
-  position: absolute;
-  left: 11rpx;
-  bottom: 0;
-  width: 6rpx;
-  height: 6rpx;
-  border-radius: 50%;
-  background: $sz-text;
-}
+.home__notification-icon { width: 30rpx; height: 30rpx; }
 .home__notification-badge {
   position: absolute;
   top: -8rpx;
