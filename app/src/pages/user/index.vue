@@ -3,7 +3,6 @@
     <profile-hero :user="user" owner :cover-url="coverUrl" />
     <view class="page__head-actions">
       <button class="page__action" :disabled="coverBusy" @click="changeCover">{{ coverBusy ? '上传中…' : '更换背景' }}</button>
-      <button class="page__action" @click="openPublicProfile">查看公开主页</button>
     </view>
 
     <view class="stats">
@@ -79,7 +78,6 @@ function menuCount(item) {
 }
 function onMenu(item) { uni.navigateTo({ url: '/pages/user/library?kind=' + item.kind }) }
 function openListening() { uni.navigateTo({ url: '/pages/user/listening' }) }
-function openPublicProfile() { if (user.value.id) uni.navigateTo({ url: `/pages/user/home?userId=${user.value.id}` }) }
 function openArchive() { if (user.value.id) uni.navigateTo({ url: `/pages/user/archive?userId=${user.value.id}` }) }
 function formatDuration(seconds = 0) {
   const minutes = Math.floor(Math.max(0, seconds) / 60)
@@ -122,8 +120,8 @@ async function onAccount() {
 
 <style lang="scss" scoped>
 .page { min-height: 100vh; box-sizing: border-box; padding: 30rpx 32rpx 170rpx; background: $sz-bg; }
-.page__head-actions { display: flex; gap: 16rpx; margin: 26rpx 20rpx 0; }
-.page__action { flex: 1; min-width: 0; margin: 0; padding: 11rpx 12rpx; border: 1rpx solid $sz-control-border; border-radius: 999rpx; background: #fff; color: $sz-control; font-size: 22rpx; font-weight: 600; white-space: nowrap; }
+.page__head-actions { display: flex; justify-content: flex-end; margin: 22rpx 20rpx 0; }
+.page__action { width: 190rpx; margin: 0; padding: 11rpx 12rpx; border: 1rpx solid $sz-control-border; border-radius: 999rpx; background: #fff; color: $sz-control; font-size: 22rpx; font-weight: 600; white-space: nowrap; }
 .page__action[disabled] { opacity: .55; }
 .stats { display: flex; margin-top: 34rpx; padding: 27rpx 0; border-top: 1rpx solid #e2e7ee; border-bottom: 1rpx solid #e2e7ee; }
 .stats__item { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: center; }

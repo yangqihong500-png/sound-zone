@@ -52,9 +52,9 @@ const serial = computed(() => String(props.user.id || 0).padStart(3, '0'))
 .profile-hero__record-center { position: absolute; top: 172rpx; left: 172rpx; width: 86rpx; height: 86rpx; border-radius: 50%; background: #42618b; box-shadow: inset 0 0 0 18rpx #29466e; }
 .profile-hero__glass { position: absolute; z-index: 3; right: 22rpx; bottom: 21rpx; padding: 13rpx 20rpx; border: 1rpx solid rgba(255,255,255,.75); border-radius: 20rpx; background: rgba(255,255,255,.58); box-shadow: 0 10rpx 25rpx rgba(35,53,82,.12); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); }
 .profile-hero__glass text { color: #294363; font-size: 18rpx; font-weight: 700; letter-spacing: 2rpx; }
-.profile-hero__identity { position: relative; z-index: 4; display: flex; align-items: flex-end; gap: 20rpx; margin: -52rpx 24rpx 0; min-width: 0; }
-.profile-hero__avatar { display: flex; flex-shrink: 0; align-items: center; justify-content: center; width: 112rpx; height: 112rpx; border: 7rpx solid $sz-bg; border-radius: 36rpx; box-shadow: 0 11rpx 29rpx rgba(35,57,84,.16); color: #fff; font-size: 52rpx; font-weight: 700; }
-.profile-hero__names { display: flex; flex: 1; min-width: 0; flex-direction: column; padding-bottom: 8rpx; }
-.profile-hero__name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: $sz-text; font-size: 36rpx; font-weight: 700; line-height: 1.2; }
+.profile-hero__identity { display: flex; align-items: center; gap: 20rpx; min-width: 0; margin: 22rpx 24rpx 0; }
+.profile-hero__avatar { display: flex; flex-shrink: 0; align-items: center; justify-content: center; width: 92rpx; height: 92rpx; border: 5rpx solid #fff; border-radius: 30rpx; box-shadow: 0 9rpx 24rpx rgba(35,57,84,.13); color: #fff; font-size: 43rpx; font-weight: 700; }
+.profile-hero__names { display: flex; flex: 1; min-width: 0; flex-direction: column; }
+.profile-hero__name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: $sz-text; font-size: 32rpx; font-weight: 700; line-height: 1.2; }
 .profile-hero__handle { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-top: 4rpx; color: $sz-text-tertiary; font-size: 22rpx; }
 </style>
