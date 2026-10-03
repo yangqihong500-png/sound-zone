@@ -11,6 +11,9 @@
       <view class="zone-card__meta">
         <view class="zone-card__chip sz-glass-clear"><text>{{ theme.icon }}</text><text>{{ sceneLabel }}</text></view>
         <view class="zone-card__live sz-glass-clear"><view class="zone-card__live-dot" /><text>LIVE</text></view>
+        <view v-if="zone.pomodoro?.enabled" class="zone-card__focus sz-glass-clear" aria-label="Focus timer zone">
+          <image src="/static/icons/pomodoro.svg" mode="aspectFit" />
+        </view>
         <text class="zone-card__listeners">{{ featured ? zone.listeners + ' with you' : zone.listeners }}</text>
       </view>
     </view>
@@ -247,6 +250,8 @@ function goDetail() {
   &__chip text { white-space: nowrap; }
   &__live { font-size: 18rpx; font-weight: 600; letter-spacing: 1rpx; }
   &__live-dot { width: 9rpx; height: 9rpx; border-radius: 50%; background: #f08a88; box-shadow: 0 0 10rpx rgba(240,138,136,.75); }
+  &__focus { width: 40rpx; height: 40rpx; flex: 0 0 40rpx; display: flex; align-items: center; justify-content: center; border-radius: 50%; background: rgba(255,255,255,.86); box-shadow: 0 5rpx 14rpx rgba(10,16,28,.14); }
+  &__focus image { width: 25rpx; height: 25rpx; }
   &__listeners { flex: 0 0 auto; min-width: 0; margin-left: auto; color: rgba(255,255,255,.78); font-size: 20rpx; text-align: right; white-space: nowrap; }
   &__info {
     flex: none;

@@ -7,6 +7,7 @@ import com.soundzone.realtime.ZoneEvent;
 import com.soundzone.track.service.TrackDurationPolicy;
 import com.soundzone.zone.entity.*;
 import com.soundzone.zone.repository.*;
+import com.soundzone.zone.service.PomodoroService;
 import com.soundzone.zone.service.ZoneAccess;
 
 import lombok.RequiredArgsConstructor;
@@ -29,6 +30,7 @@ public class PlaybackService {
     private final Clock clock;
     private final TrackDurationPolicy durations;
     private final NotificationService notifications;
+    private final PomodoroService pomodoro;
 
     @Value("${soundzone.presence-grace-seconds:90}")
     private long graceSeconds;
@@ -89,6 +91,7 @@ public class PlaybackService {
     /** 调用方必须已持有域行锁并处于事务内。延迟 tick 按自然结束时间连续补偿。 */
     public void advanceLocked(Zone zone) {
         if (zone.getStatus() != ZoneStatus.ACTIVE) return;
+        if (pomodoro.reconcileLocked(zone)) changed(zone);
         LocalDateTime now = LocalDateTime.now(clock);
         LocalDateTime nextStart = now;
         for (int i = 0; i < 1000; i++) {

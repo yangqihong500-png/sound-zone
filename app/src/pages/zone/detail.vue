@@ -42,6 +42,21 @@
       <view v-if="zone.filterTags?.length" class="filter-note">
         {{ zone.filterMode === 'BAN' ? 'Blocked tags' : 'Allowed tags' }}: {{ [...zone.filterTags].join(' · ') }}
       </view>
+      <view v-if="zone.pomodoro?.enabled" class="focus-strip" :class="'focus-strip--' + zone.pomodoro.phase.toLowerCase()" @click="pomodoroExpanded = !pomodoroExpanded">
+        <view class="focus-strip__icon"><image src="/static/icons/pomodoro.svg" mode="aspectFit" /></view>
+        <view class="focus-strip__copy">
+          <text class="focus-strip__eyebrow">SHARED FOCUS</text>
+          <text class="focus-strip__title">{{ pomodoroPhaseLabel }} · {{ formatCooldown(pomodoroRemaining) }}</text>
+        </view>
+        <text class="focus-strip__round">{{ zone.pomodoro.focusRound }}/{{ zone.pomodoro.focusRounds }}</text>
+        <text class="focus-strip__arrow">{{ pomodoroExpanded ? '⌃' : '⌄' }}</text>
+      </view>
+      <view v-if="zone.pomodoro?.enabled && pomodoroExpanded" class="focus-panel sz-glass-clear">
+        <view class="focus-panel__row"><text>Rhythm</text><text>{{ pomodoroPresetLabel }}</text></view>
+        <view class="focus-panel__row"><text>Current phase</text><text>{{ pomodoroPhaseLabel }}</text></view>
+        <view class="focus-panel__row"><text>Music by phase</text><text>{{ zone.pomodoro.musicByPhase ? 'On' : 'Off' }}</text></view>
+        <text class="focus-panel__hint">The current song always finishes naturally. The next track follows this phase.</text>
+      </view>
       <view v-if="zone.nowPlaying" class="now-playing now-playing--active">
         <view class="now-playing__cover" :style="{ backgroundColor: zone.coverColor }">
           <image v-if="zone.nowPlaying.coverUrl" class="now-playing__cover-image" :src="zone.nowPlaying.coverUrl" mode="aspectFill" />
@@ -123,6 +138,22 @@
         </view>
       </view>
 
+      <view v-if="zone.presetQueue?.length" class="section">
+        <view class="section__header">
+          <text class="section__title">Saved for {{ zone.pomodoro?.phase === 'FOCUS' ? 'Break' : 'Focus' }}</text>
+          <text class="section__more section__more--status">{{ zone.presetQueue.length }} waiting</text>
+        </view>
+        <view class="sz-card queue-card queue-card--preset">
+          <queue-item
+            v-for="(song, i) in zone.presetQueue"
+            :key="song.itemId"
+            :item="song"
+            :rank="i + 1"
+            @user="goUserHome"
+          />
+        </view>
+      </view>
+
       <view class="bottom-spacer" />
     </scroll-view>
 
@@ -186,6 +217,8 @@ const showSongPopup = ref(false)
 const showImagePopup = ref(false)
 const cooldown = ref(0)
 const progress = ref(0)
+const pomodoroRemaining = ref(0)
+const pomodoroExpanded = ref(false)
 const sessionListeningSeconds = ref(0)
 const password = ref('')
 const needsPassword = ref(false)
@@ -197,6 +230,12 @@ const effectTheme = computed(() => ({ 自习: 'study', 健身: 'fitness', 旅行
 const statusBarHeight = ref(uni.getSystemInfoSync().statusBarHeight || 20)
 const imageCandidate = computed(() => zone.value?.imageCandidate)
 const collected = computed(() => !!zone.value?.nowPlaying?.collected)
+const pomodoroPhaseLabel = computed(() => {
+  if (!zone.value?.pomodoro?.enabled) return ''
+  if (zone.value.pomodoro.phase === 'FOCUS') return `Focus ${zone.value.pomodoro.focusRound}`
+  return zone.value.pomodoro.longBreak ? 'Long break' : 'Short break'
+})
+const pomodoroPresetLabel = computed(() => zone.value?.pomodoro?.preset === 'DEEP' ? '40 / 10 Deep focus' : '25 / 5 Classic')
 const extractedCoverPalette = ref(null)
 const LIGHT_PALETTES = {
   ice: { base: '#B9DCF7', soft: '#E2F1FC', glow: 'rgba(67, 141, 208, 0.42)' },
@@ -238,6 +277,7 @@ let refreshing = false
 let collectBusy = false
 let unloaded = false
 let lastSessionTick = 0
+let serverClockOffset = 0
 
 onLoad((option) => {
   zoneId = Number(option.id)
@@ -249,6 +289,7 @@ onLoad((option) => {
   timer = setInterval(() => {
     const now = Date.now()
     cooldown.value = Math.max(0, Math.ceil((cooldownUntil - Date.now()) / 1000))
+    if (zone.value?.pomodoro?.enabled) pomodoroRemaining.value = Math.max(0, Math.ceil((zone.value.pomodoro.phaseEndsAt - (Date.now() + serverClockOffset)) / 1000))
     if (zone.value?.nowPlaying) progress.value = positionSeconds() / zone.value.nowPlaying.durationSec * 100
     if (lastSessionTick && playback.playing && playback.itemId && playback.itemId === zone.value?.nowPlaying?.itemId) {
       sessionListeningSeconds.value += Math.min(2, Math.max(0, Math.floor((now - lastSessionTick) / 1000)))
@@ -325,7 +366,16 @@ async function refresh() {
 
 function applySnapshot(data) {
   if (unloaded || !data) return
-  if (!zone.value || data.stateVersion >= zone.value.stateVersion) zone.value = data
+  const previousPeriod = zone.value?.pomodoro?.periodIndex
+  if (!zone.value || data.stateVersion >= zone.value.stateVersion) {
+    zone.value = data
+    serverClockOffset = Number(data.serverTime || Date.now()) - Date.now()
+    if (data.pomodoro?.enabled) {
+      pomodoroRemaining.value = Math.max(0, Math.ceil((data.pomodoro.phaseEndsAt - (Date.now() + serverClockOffset)) / 1000))
+      if (previousPeriod !== undefined && previousPeriod !== data.pomodoro.periodIndex)
+        toast(data.pomodoro.phase === 'FOCUS' ? '新一轮专注开始' : data.pomodoro.longBreak ? '进入长休息' : '休息一下')
+    }
+  }
 }
 async function refreshCooldown() {
   const remaining = await getCooldown(zoneId)
@@ -662,6 +712,27 @@ function paletteFromPixels(pixels) {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+.focus-strip {
+  display: flex; align-items: center; gap: 14rpx; margin-top: 20rpx; padding: 17rpx 19rpx;
+  border: 1rpx solid rgba(255,255,255,.82); border-radius: 27rpx;
+  background: rgba(255,255,255,.78); box-shadow: 0 15rpx 38rpx rgba(48,74,108,.1);
+  backdrop-filter: blur(22px) saturate(116%); -webkit-backdrop-filter: blur(22px) saturate(116%);
+}
+.focus-strip--focus { box-shadow: 0 15rpx 38rpx rgba(63,108,173,.14), inset 5rpx 0 0 #6d91c6; }
+.focus-strip--break { box-shadow: 0 15rpx 38rpx rgba(98,142,116,.13), inset 5rpx 0 0 #7fa78b; }
+.focus-strip__icon { width: 52rpx; height: 52rpx; flex: 0 0 52rpx; display: flex; align-items: center; justify-content: center; border-radius: 17rpx; background: #fff; }
+.focus-strip__icon image { width: 34rpx; height: 34rpx; }
+.focus-strip__copy { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2rpx; }
+.focus-strip__eyebrow { color: rgba(11,35,72,.46); font-size: 14rpx; font-weight: 750; letter-spacing: 1.7rpx; }
+.focus-strip__title { color: #0b2348; font-size: 23rpx; font-weight: 750; }
+.focus-strip__round { color: rgba(11,35,72,.58); font-size: 18rpx; font-weight: 650; }
+.focus-strip__arrow { color: rgba(11,35,72,.5); font-size: 25rpx; }
+.focus-panel { margin-top: 10rpx; padding: 20rpx; border: 1rpx solid rgba(255,255,255,.74); border-radius: 24rpx; background: rgba(255,255,255,.66); }
+.focus-panel__row { display: flex; justify-content: space-between; gap: 20rpx; padding: 7rpx 0; color: $sz-text-secondary; font-size: 18rpx; }
+.focus-panel__row text:last-child { color: $sz-text; font-weight: 650; }
+.focus-panel__hint { display: block; margin-top: 12rpx; padding-top: 12rpx; border-top: 1rpx solid rgba(0,0,0,.07); color: $sz-text-tertiary; font-size: 17rpx; line-height: 1.45; }
+.queue-card--preset { opacity: .8; }
 
 /* 顶部固定栏直接透出同一片氛围背景，避免底边出现色块接缝 */
 .nav {

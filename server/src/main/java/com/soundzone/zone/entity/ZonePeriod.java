@@ -6,10 +6,7 @@ import lombok.Data;
 import java.util.HashSet;
 import java.util.Set;
 
-/**
- * 旧番茄钟时段配置，保留历史数据与上传准入兼容。
- * 本轮不开放新配置，不执行预存歌曲自动转正。
- */
+/** 番茄钟时段配置：按 orderIndex 组成一个循环，阶段切换时重算预存队列。 */
 @Data
 @Entity
 @Table(name = "sz_zone_period")

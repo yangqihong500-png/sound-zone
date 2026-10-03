@@ -61,6 +61,9 @@ CREATE TABLE IF NOT EXISTS sz_track_tags (
 CREATE TABLE IF NOT EXISTS sz_zone (
   last_activity_at DATETIME(6) DEFAULT NULL,
   state_version BIGINT NOT NULL DEFAULT 0,
+  pomodoro_preset VARCHAR(16) DEFAULT NULL,
+  pomodoro_started_at DATETIME(6) DEFAULT NULL,
+  pomodoro_period_index INT DEFAULT NULL,
   demo_resident BIT(1) NOT NULL DEFAULT b'0',
   password_hash VARCHAR(256) DEFAULT NULL,
   id             BIGINT      NOT NULL AUTO_INCREMENT,

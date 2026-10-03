@@ -222,6 +222,53 @@
                 <text v-if="!filterReady" class="required-hint">Choose at least one tag for this filter.</text>
               </view>
             </view>
+            <view v-if="!editId" class="focus-toggle" :class="{ 'focus-toggle--active': form.pomodoroEnabled }" @click="togglePomodoro">
+              <view class="focus-toggle__icon"><image src="/static/icons/pomodoro.svg" mode="aspectFit" /></view>
+              <view class="focus-toggle__copy">
+                <text class="focus-toggle__eyebrow">SHARED FOCUS</text>
+                <text class="focus-toggle__title">Focus Timer</text>
+                <text class="focus-toggle__sub">One calm rhythm for everyone in the zone</text>
+              </view>
+              <view class="focus-toggle__state">{{ form.pomodoroEnabled ? 'ON' : 'ADD' }}</view>
+            </view>
+            <view v-if="!editId && form.pomodoroEnabled" class="focus-settings setting-card">
+              <text class="focus-settings__label">CHOOSE A RHYTHM</text>
+              <view class="focus-presets">
+                <view class="focus-preset" :class="{ 'focus-preset--active': form.pomodoroPreset === 'CLASSIC' }" @click="form.pomodoroPreset = 'CLASSIC'">
+                  <text class="focus-preset__time">25 / 5</text>
+                  <text class="focus-preset__name">Classic</text>
+                  <text class="focus-preset__meta">4 rounds · 15 min long break</text>
+                </view>
+                <view class="focus-preset" :class="{ 'focus-preset--active': form.pomodoroPreset === 'DEEP' }" @click="form.pomodoroPreset = 'DEEP'">
+                  <text class="focus-preset__time">40 / 10</text>
+                  <text class="focus-preset__name">Deep focus</text>
+                  <text class="focus-preset__meta">3 rounds · 20 min long break</text>
+                </view>
+              </view>
+              <view class="phase-music" @click="togglePhaseMusic">
+                <view>
+                  <text class="phase-music__title">Music by phase</text>
+                  <text class="phase-music__sub">Optionally save different songs for focus and breaks</text>
+                </view>
+                <view class="phase-music__state" :class="{ 'phase-music__state--active': form.phaseMusicEnabled }">{{ form.phaseMusicEnabled ? 'ON' : 'OFF' }}</view>
+              </view>
+              <view v-if="form.phaseMusicEnabled" class="phase-tags">
+                <text class="phase-tags__title">Focus allows</text>
+                <scroll-view class="phase-tags__scroll" scroll-x enhanced :show-scrollbar="false">
+                  <view class="phase-tags__row">
+                    <view v-for="tag in filterableTags" :key="'focus-' + tag" class="tag" :class="{ 'tag--active': form.focusTags.includes(tag) }" @click="togglePhaseTag('focus', tag)">{{ tagLabel(tag) }}</view>
+                  </view>
+                </scroll-view>
+                <text class="phase-tags__title phase-tags__title--break">Break allows</text>
+                <scroll-view class="phase-tags__scroll" scroll-x enhanced :show-scrollbar="false">
+                  <view class="phase-tags__row">
+                    <view v-for="tag in filterableTags" :key="'break-' + tag" class="tag" :class="{ 'tag--active': form.breakTags.includes(tag) }" @click="togglePhaseTag('break', tag)">{{ tagLabel(tag) }}</view>
+                  </view>
+                </scroll-view>
+                <text v-if="!phaseTagsReady" class="required-hint">Choose at least one tag for both focus and break.</text>
+                <text v-else-if="!firstTrackFitsFocus" class="required-hint">The first starter track must match a Focus tag.</text>
+              </view>
+            </view>
             <view v-if="!editId" class="setting-card privacy-card">
               <view class="setting-card__heading">
                 <view>
@@ -237,6 +284,7 @@
               <view class="review-card__row"><text>Name</text><text>{{ form.name.trim() || 'Missing' }}</text></view>
               <view class="review-card__row"><text>Scene</text><text>{{ form.scene ? selectedSceneMeta.label : 'Missing' }}</text></view>
               <view v-if="!editId" class="review-card__row"><text>Starter tracks</text><text>{{ form.trackIds.length }}/3</text></view>
+              <view v-if="!editId" class="review-card__row"><text>Focus timer</text><text>{{ focusReviewLabel }}</text></view>
               <view v-if="!editId" class="review-card__row"><text>Access</text><text>{{ form.visibility === 'PRIVATE' ? 'Private' : 'Public' }}</text></view>
             </view>
             <text v-if="blockedTracks.length" class="required-hint">{{ blockedTracks.length }} selected track(s) conflict with this filter.</text>
@@ -345,6 +393,7 @@ const tagLabels = {
   流行: 'Pop', 摇滚: 'Rock', 电子: 'Electronic', 说唱: 'Hip-Hop', 民谣: 'Folk', 爵士: 'Jazz', 古典: 'Classical', 抖音热曲: 'Trending',
   舒缓: 'Calm', 治愈: 'Comforting', 亢奋: 'Energetic', 忧郁: 'Melancholy', 情歌: 'Romantic', 专注: 'Focus',
 }
+const filterableTags = computed(() => tagCategories.flatMap((category) => tagCatalog.value[category] || []))
 function categoryLabel(value) { return categoryLabels[value] || value }
 function tagLabel(value) { return tagLabels[value] || value }
 function formatDuration(sec) {
@@ -365,6 +414,11 @@ const form = reactive({
   visibility: 'PUBLIC',
   password: '',
   trackIds: [],
+  pomodoroEnabled: false,
+  pomodoroPreset: 'CLASSIC',
+  phaseMusicEnabled: false,
+  focusTags: [],
+  breakTags: [],
 })
 
 onLoad(async (options) => {
@@ -389,7 +443,11 @@ async function loadTracks() {
 const blockedTracks = computed(() => selectedTracks.value.filter(isTrackBlocked))
 const availableSeedTracks = computed(() => seedTracks.value.filter((track) => !form.trackIds.includes(track.id)))
 const filterReady = computed(() => form.filterMode === 'NONE' || form.filterTags.length > 0)
-const canCreate = computed(() => form.name.trim().length > 0 && form.scene && (editId.value || (filterReady.value && form.trackIds.length === 3 && blockedTracks.value.length === 0)))
+const phaseTagsReady = computed(() => !form.phaseMusicEnabled || (form.focusTags.length > 0 && form.breakTags.length > 0))
+const firstTrackFitsFocus = computed(() => !form.phaseMusicEnabled || !selectedTracks.value.length || selectedTracks.value[0].tags?.some((tag) => form.focusTags.includes(tag)))
+const pomodoroReady = computed(() => !form.pomodoroEnabled || (phaseTagsReady.value && firstTrackFitsFocus.value))
+const focusReviewLabel = computed(() => !form.pomodoroEnabled ? 'Off' : form.pomodoroPreset === 'DEEP' ? '40 / 10 Deep focus' : '25 / 5 Classic')
+const canCreate = computed(() => form.name.trim().length > 0 && form.scene && (editId.value || (filterReady.value && pomodoroReady.value && form.trackIds.length === 3 && blockedTracks.value.length === 0)))
 const isLastStep = computed(() => currentStep.value === steps.value.length - 1)
 const primaryReady = computed(() => isLastStep.value ? canCreate.value : isStepComplete(currentStepData.value.key))
 const primaryLabel = computed(() => {
@@ -402,14 +460,19 @@ function isStepComplete(key) {
   if (key === 'name') return form.name.trim().length > 0
   if (key === 'scene') return Boolean(form.scene)
   if (key === 'tracks') return form.trackIds.length === 3 && blockedTracks.value.length === 0
-  if (key === 'more') return filterReady.value && blockedTracks.value.length === 0
+  if (key === 'more') return filterReady.value && pomodoroReady.value && blockedTracks.value.length === 0
   return true
 }
 function validationMessage(key) {
   if (key === 'name') return 'Name your zone first'
   if (key === 'scene') return 'Choose a scene first'
   if (key === 'tracks') return 'Choose exactly 3 tracks'
-  if (key === 'more') return filterReady.value ? 'Resolve tracks blocked by the filter' : 'Choose at least one filter tag'
+  if (key === 'more') {
+    if (!filterReady.value) return 'Choose at least one filter tag'
+    if (!phaseTagsReady.value) return 'Choose focus and break tags'
+    if (!firstTrackFitsFocus.value) return 'Choose a first track that fits Focus'
+    return 'Resolve tracks blocked by the filter'
+  }
   return ''
 }
 function onStepChange(event) { currentStep.value = Number(event.detail.current || 0) }
@@ -483,6 +546,22 @@ function toggleTrack(track) {
   selectedTracks.value.push(track)
 }
 function onPrivacyChange(event) { form.visibility = event.detail.value ? 'PRIVATE' : 'PUBLIC' }
+function togglePomodoro() { form.pomodoroEnabled = !form.pomodoroEnabled }
+function togglePhaseMusic() { form.phaseMusicEnabled = !form.phaseMusicEnabled }
+function togglePhaseTag(type, tag) {
+  const values = type === 'focus' ? form.focusTags : form.breakTags
+  const index = values.indexOf(tag)
+  index >= 0 ? values.splice(index, 1) : values.push(tag)
+}
+function buildPomodoroPeriods() {
+  if (!form.pomodoroEnabled) return []
+  const focusTags = form.phaseMusicEnabled ? [...form.focusTags] : []
+  const breakTags = form.phaseMusicEnabled ? [...form.breakTags] : []
+  const steps = form.pomodoroPreset === 'DEEP'
+    ? [[40, 'FOCUS'], [10, 'BREAK'], [40, 'FOCUS'], [10, 'BREAK'], [40, 'FOCUS'], [20, 'BREAK']]
+    : [[25, 'FOCUS'], [5, 'BREAK'], [25, 'FOCUS'], [5, 'BREAK'], [25, 'FOCUS'], [5, 'BREAK'], [25, 'FOCUS'], [15, 'BREAK']]
+  return steps.map(([durationMin, type], orderIndex) => ({ orderIndex, durationMin, type, allowedTags: type === 'FOCUS' ? focusTags : breakTags }))
+}
 
 async function onCreate() {
   if (submitting.value) return
@@ -498,7 +577,7 @@ async function onCreate() {
       uni.navigateBack()
       return
     }
-    const payload = { name: form.name.trim(), scene: form.scene, filterMode: form.filterMode, filterTags: form.filterTags, visibility: form.visibility, password: form.password || null, trackIds: form.trackIds }
+    const payload = { name: form.name.trim(), scene: form.scene, filterMode: form.filterMode, filterTags: form.filterTags, visibility: form.visibility, password: form.password || null, trackIds: form.trackIds, periods: buildPomodoroPeriods() }
     const zone = customCoverPath.value ? await createZoneWithCover(payload, customCoverPath.value) : await createZone(payload)
     uni.showToast({ title: 'Zone created', icon: 'success' })
     finishCreateFromTab()
@@ -630,6 +709,41 @@ function goHome() {
 .setting-card__title { color: $sz-text; font-size: 25rpx; font-weight: 700; }
 .setting-card__sub { color: $sz-text-tertiary; font-size: 18rpx; }
 .setting-card__lock { padding: 6rpx 12rpx; border-radius: 999rpx; color: $sz-text-tertiary; background: rgba(0,0,0,.05); font-size: 16rpx; }
+.focus-toggle {
+  display: flex; align-items: center; gap: 18rpx; margin-bottom: 18rpx; padding: 24rpx;
+  border: 1rpx solid rgba(255,255,255,.22); border-radius: 32rpx;
+  background: linear-gradient(145deg, #20242b, #111318); color: #fff;
+  box-shadow: 0 22rpx 48rpx rgba(16,20,27,.22); transition: transform .16s ease, box-shadow .16s ease;
+}
+.focus-toggle:active { transform: scale(.985); }
+.focus-toggle--active { box-shadow: 0 22rpx 54rpx rgba(29,78,216,.26), inset 0 0 0 2rpx rgba(122,166,255,.72); }
+.focus-toggle__icon { width: 76rpx; height: 76rpx; flex: 0 0 76rpx; display: flex; align-items: center; justify-content: center; border-radius: 23rpx; background: #fff; }
+.focus-toggle__icon image { width: 48rpx; height: 48rpx; }
+.focus-toggle__copy { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3rpx; }
+.focus-toggle__eyebrow { color: rgba(255,255,255,.48); font-size: 15rpx; font-weight: 750; letter-spacing: 2rpx; }
+.focus-toggle__title { font-size: 27rpx; font-weight: 750; }
+.focus-toggle__sub { color: rgba(255,255,255,.62); font-size: 17rpx; line-height: 1.35; }
+.focus-toggle__state { padding: 8rpx 14rpx; border-radius: 999rpx; background: rgba(255,255,255,.13); color: #fff; font-size: 16rpx; font-weight: 750; letter-spacing: 1rpx; }
+.focus-toggle--active .focus-toggle__state { background: #fff; color: #1c1c1e; }
+.focus-settings { padding-top: 24rpx; }
+.focus-settings__label { color: $sz-text-tertiary; font-size: 16rpx; font-weight: 750; letter-spacing: 1.8rpx; }
+.focus-presets { display: grid; grid-template-columns: 1fr 1fr; gap: 12rpx; margin-top: 16rpx; }
+.focus-preset { display: flex; flex-direction: column; gap: 4rpx; padding: 19rpx; border: 1rpx solid rgba(0,0,0,.07); border-radius: 23rpx; background: rgba(0,0,0,.035); }
+.focus-preset--active { border-color: $sz-brand; background: rgba(29,78,216,.08); box-shadow: inset 0 0 0 1rpx $sz-brand; }
+.focus-preset__time { color: $sz-brand; font-size: 28rpx; font-weight: 800; letter-spacing: -1rpx; }
+.focus-preset__name { color: $sz-text; font-size: 20rpx; font-weight: 700; }
+.focus-preset__meta { color: $sz-text-tertiary; font-size: 15rpx; line-height: 1.35; }
+.phase-music { display: flex; align-items: center; justify-content: space-between; gap: 16rpx; margin-top: 20rpx; padding-top: 20rpx; border-top: 1rpx solid rgba(0,0,0,.07); }
+.phase-music > view:first-child { display: flex; flex-direction: column; gap: 3rpx; }
+.phase-music__title { color: $sz-text; font-size: 21rpx; font-weight: 700; }
+.phase-music__sub { color: $sz-text-tertiary; font-size: 16rpx; }
+.phase-music__state { padding: 7rpx 13rpx; border-radius: 999rpx; color: $sz-text-tertiary; background: rgba(0,0,0,.055); font-size: 15rpx; font-weight: 750; }
+.phase-music__state--active { color: #fff; background: $sz-control; }
+.phase-tags { margin-top: 22rpx; }
+.phase-tags__title { display: block; margin-bottom: 9rpx; color: $sz-text-secondary; font-size: 18rpx; font-weight: 650; }
+.phase-tags__title--break { margin-top: 18rpx; }
+.phase-tags__scroll { width: 100%; white-space: nowrap; }
+.phase-tags__row { display: inline-flex; gap: 8rpx; padding-right: 20rpx; }
 .mode-switch { display: flex; gap: 0; margin-top: 22rpx; padding: 6rpx; border-radius: 20rpx; background: rgba(0,0,0,.055); }
 .mode-switch__option { flex: 1; padding: 15rpx 0; border-radius: 15rpx; color: $sz-text-secondary; font-size: 20rpx; text-align: center; }
 .mode-switch__option--active { background: #fff; color: $sz-text; font-weight: 650; box-shadow: 0 3rpx 10rpx rgba(0,0,0,.07); }

@@ -11,7 +11,7 @@ import com.soundzone.track.repository.TrackRepository;
 import com.soundzone.track.service.TrackDurationPolicy;
 import com.soundzone.user.repository.UserRepository;
 import com.soundzone.zone.entity.*;
-import com.soundzone.zone.repository.ZonePeriodRepository;
+import com.soundzone.zone.service.PomodoroService;
 import com.soundzone.zone.service.ZoneAccess;
 
 import lombok.RequiredArgsConstructor;
@@ -36,7 +36,7 @@ public class QueueService {
     private final ZoneAccess access;
     private final TrackRepository tracks;
     private final UserRepository users;
-    private final ZonePeriodRepository periods;
+    private final PomodoroService pomodoro;
     private final TagPolicy policy;
     private final TrackDurationPolicy durations;
     private final PlaybackService playback;
@@ -67,25 +67,7 @@ public class QueueService {
         item.setTrack(track);
         item.setRequester(users.getReferenceById(userId));
         item.setCreatedAt(LocalDateTime.now(clock));
-        // 旧域时段配置继续约束准入，保留 PRESET；新建时段在 MVP 中关闭。
-        var schedule = periods.findByZoneIdOrderByOrderIndexAsc(zoneId);
-        if (!schedule.isEmpty()) {
-            long cycle = schedule.stream().mapToLong(p -> Math.max(1, p.getDurationMin())).sum();
-            long offset =
-                    Math.floorMod(
-                            Duration.between(zone.getCreatedAt(), LocalDateTime.now(clock))
-                                    .toMinutes(),
-                            cycle);
-            for (var p : schedule) {
-                if (offset < Math.max(1, p.getDurationMin())) {
-                    if (!p.getAllowedTags().isEmpty()
-                            && track.getTags().stream().noneMatch(p.getAllowedTags()::contains))
-                        item.setStatus(QueueStatus.PRESET);
-                    break;
-                }
-                offset -= Math.max(1, p.getDurationMin());
-            }
-        }
+        if (!pomodoro.allowsNow(zone, track)) item.setStatus(QueueStatus.PRESET);
         queue.saveAndFlush(item);
         zone.setLastActivityAt(LocalDateTime.now(clock));
         activity.record(userId, zoneId, item.getId(), "UPLOAD", 0);

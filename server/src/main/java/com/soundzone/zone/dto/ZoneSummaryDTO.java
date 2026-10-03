@@ -15,5 +15,6 @@ public record ZoneSummaryDTO(
         Set<String> tags,
         String filterMode,
         Set<String> filterTags,
+        PomodoroStateDTO pomodoro,
         NowPlayingDTO nowPlaying,
         ZoneSearchMatchDTO searchMatch) {}

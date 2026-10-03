@@ -210,6 +210,19 @@ class CoreWorkflowTest {
                 host.getId());
     }
 
+    private List<ZoneCreateRequest.PeriodConfig> classicPeriods(
+            Set<String> focusTags, Set<String> breakTags) {
+        int[] minutes = {25, 5, 25, 5, 25, 5, 25, 15};
+        List<ZoneCreateRequest.PeriodConfig> result = new ArrayList<>();
+        for (int i = 0; i < minutes.length; i++) {
+            String type = i % 2 == 0 ? "FOCUS" : "BREAK";
+            result.add(
+                    new ZoneCreateRequest.PeriodConfig(
+                            i, minutes[i], type, "FOCUS".equals(type) ? focusTags : breakTags));
+        }
+        return result;
+    }
+
     private void join(Long id, Long user) {
         zones.joinZone(id, new JoinZoneRequest(999L, null, null), user);
     }
@@ -703,6 +716,64 @@ class CoreWorkflowTest {
         assertEquals(ZoneStatus.ENDED, zoneRepo.findById(z.id()).orElseThrow().getStatus());
         assertEquals(
                 QueueStatus.STOPPED, queueRepo.findById(added.itemId()).orElseThrow().getStatus());
+    }
+
+    @Test
+    void sharedPomodoroPromotesPresetSongsWithoutInterruptingCurrentTrack() {
+        var ids = songs.subList(0, 3).stream().map(Track::getId).toList();
+        var request =
+                new ZoneCreateRequest(
+                        "同频专注室",
+                        "自习",
+                        null,
+                        ids,
+                        "PUBLIC",
+                        null,
+                        "NONE",
+                        Set.of(),
+                        Set.of(),
+                        null,
+                        classicPeriods(Set.of("舒缓"), Set.of("流行")));
+        var created = zones.createZone(request, host.getId());
+        assertTrue(created.pomodoro().enabled());
+        assertEquals("CLASSIC", created.pomodoro().preset());
+        assertEquals("FOCUS", created.pomodoro().phase());
+        assertTrue(zones.listActive(null, null).get(0).pomodoro().enabled());
+
+        join(created.id(), listener.getId());
+        clock.advance(30);
+        playback.tick(created.id());
+        assertNull(zones.getDetail(created.id(), host.getId()).nowPlaying());
+
+        clock.advance(1460); // 创建后 24:50，留十秒跨越首个阶段边界。
+        zones.heartbeat(created.id(), host.getId(), null, false);
+        zones.heartbeat(created.id(), listener.getId(), null, false);
+        Track focusTrack = songs.get(3);
+        focusTrack.setDurationSec(600);
+        tracks.saveAndFlush(focusTrack);
+        var current =
+                queue.requestSong(
+                        created.id(), new SongRequest(focusTrack.getId(), null), host.getId());
+        assertEquals("PLAYING", current.status());
+
+        Track breakTrack = new Track();
+        breakTrack.setTitle("休息段歌曲");
+        breakTrack.setArtist("测试作者");
+        breakTrack.setDurationSec(120);
+        breakTrack.getTags().add("流行");
+        breakTrack = tracks.saveAndFlush(breakTrack);
+        var saved =
+                queue.requestSong(
+                        created.id(), new SongRequest(breakTrack.getId(), null), listener.getId());
+        assertEquals("PRESET", saved.status());
+
+        clock.advance(20);
+        playback.tick(created.id());
+        var detail = zones.getDetail(created.id(), host.getId());
+        assertEquals("BREAK", detail.pomodoro().phase());
+        assertEquals(current.itemId(), detail.nowPlaying().itemId());
+        assertEquals(List.of(saved.itemId()), detail.queue().stream().map(QueueItemDTO::itemId).toList());
+        assertTrue(detail.presetQueue().isEmpty());
     }
 
     @Test

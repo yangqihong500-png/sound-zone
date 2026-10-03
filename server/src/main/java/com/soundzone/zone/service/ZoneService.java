@@ -48,6 +48,7 @@ public class ZoneService {
     private final MomentService moments;
     private final ImageStorage imageStorage;
     private final ActivityService activity;
+    private final PomodoroService pomodoro;
     private final Clock clock;
 
     @Value("${soundzone.active-window-minutes:30}")
@@ -178,8 +179,6 @@ public class ZoneService {
                 || req.trackIds().size() != 3
                 || new HashSet<>(req.trackIds()).size() != req.trackIds().size())
             throw new BizException(ResultCode.PARAM_INVALID, "初始歌单必须是三首不同歌曲");
-        if (req.periods() != null && !req.periods().isEmpty())
-            throw new BizException(ResultCode.PARAM_INVALID, "番茄钟将在后续阶段开放");
         Zone zone = new Zone();
         zone.setName(req.name().strip());
         zone.setScene(normalizeScene(req.scene()));
@@ -224,6 +223,9 @@ public class ZoneService {
         zone.setCreatedAt(now);
         zone.setLastActivityAt(now);
         zones.saveAndFlush(zone);
+        pomodoro.configure(zone, req.periods());
+        if (!initial.isEmpty() && !pomodoro.allowsNow(zone, initial.get(0)))
+            throw new BizException(ResultCode.PARAM_INVALID, "第一首歌必须能在专注阶段播放");
         addMember(zone, userId);
         for (Track track : initial) {
             QueueItem item = new QueueItem();
@@ -231,6 +233,7 @@ public class ZoneService {
             item.setTrack(track);
             item.setRequester(zone.getHost());
             item.setCreatedAt(now);
+            if (!pomodoro.allowsNow(zone, track)) item.setStatus(QueueStatus.PRESET);
             queue.save(item); // 同一时间以自增 ID 保证稳定顺序
         }
         queue.flush();
@@ -342,6 +345,9 @@ public class ZoneService {
         var queued =
                 queue.findByZoneIdAndStatusOrderByCreatedAtAscIdAsc(
                         zone.getId(), QueueStatus.QUEUED);
+        var preset =
+                queue.findByZoneIdAndStatusOrderByCreatedAtAscIdAsc(
+                        zone.getId(), QueueStatus.PRESET);
         List<QueueItemDTO> items = new ArrayList<>();
         for (int i = 0; i < queued.size(); i++)
             items.add(
@@ -349,6 +355,13 @@ public class ZoneService {
                             queued.get(i),
                             i + 1,
                             likes.existsByUserIdAndItemId(userId, queued.get(i).getId())));
+        List<QueueItemDTO> presetItems = new ArrayList<>();
+        for (int i = 0; i < preset.size(); i++)
+            presetItems.add(
+                    QueueItemDTO.from(
+                            preset.get(i),
+                            i + 1,
+                            likes.existsByUserIdAndItemId(userId, preset.get(i).getId())));
         QueueItemDTO candidate =
                 queue.findFirstByZoneIdAndRequesterIdOrderByCreatedAtDescIdDesc(
                                 zone.getId(), userId)
@@ -386,8 +399,10 @@ public class ZoneService {
                 zone.getTags(),
                 zone.getFilterMode().name(),
                 zone.getFilterTags(),
+                pomodoro.state(zone),
                 nowPlaying,
                 items,
+                presetItems,
                 momentPreviews,
                 clock.millis(),
                 zone.getStateVersion(),
@@ -458,6 +473,7 @@ public class ZoneService {
                 z.getTags(),
                 z.getFilterMode().name(),
                 z.getFilterTags(),
+                pomodoro.state(z),
                 currentPlaying(z.getId(), null),
                 searchMatch);
     }

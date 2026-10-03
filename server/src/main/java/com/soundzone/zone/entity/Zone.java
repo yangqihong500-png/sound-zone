@@ -64,6 +64,16 @@ public class Zone {
     @Column(nullable = false)
     private long stateVersion = 0;
 
+    /** 番茄钟预设：CLASSIC / DEEP；为空表示普通域。 */
+    @Column(length = 16)
+    private String pomodoroPreset;
+
+    /** 共享番茄钟的服务端起点；客户端只按该时间与 serverTime 展示。 */
+    private LocalDateTime pomodoroStartedAt;
+
+    /** 最近一次由服务端公布的时段序号，用于跨设备推送阶段切换。 */
+    private Integer pomodoroPeriodIndex;
+
     /** 演示环境常驻域：由演示成员保活并循环预置歌单；成员数归零时仍结束。 */
     @Column(nullable = false)
     private boolean demoResident = false;
