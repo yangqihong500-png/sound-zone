@@ -87,6 +87,13 @@
         "navigationBarTitleText": "Messages",
         "navigationStyle": "custom"
       }
+    },
+    {
+      "path": "pages/notification/index",
+      "style": {
+        "navigationBarTitleText": "Notifications",
+        "navigationStyle": "custom"
+      }
     }
   ],
   "globalStyle": {

@@ -12,6 +12,9 @@ import com.soundzone.feedback.service.FeedbackService;
 import com.soundzone.message.dto.*;
 import com.soundzone.message.repository.DirectMessageRepository;
 import com.soundzone.message.service.DirectMessageService;
+import com.soundzone.notification.entity.NotificationType;
+import com.soundzone.notification.repository.NotificationRepository;
+import com.soundzone.notification.service.NotificationService;
 import com.soundzone.moment.dto.*;
 import com.soundzone.moment.entity.*;
 import com.soundzone.moment.repository.*;
@@ -83,6 +86,8 @@ class CoreWorkflowTest {
     @Autowired UserService userService;
     @Autowired DirectMessageService directMessages;
     @Autowired DirectMessageRepository directMessageRepo;
+    @Autowired NotificationService notificationService;
+    @Autowired NotificationRepository notificationRepo;
     @Autowired SessionService sessions;
     @Autowired MutableClock clock;
     @Autowired JdbcTemplate jdbc;
@@ -134,6 +139,7 @@ class CoreWorkflowTest {
                 "禁止在业务库清理测试数据");
         for (String table :
                 List.of(
+                        "sz_notification",
                         "sz_training_export_item",
                         "sz_moment_reaction",
                         "sz_queue_like",
@@ -1053,6 +1059,55 @@ class CoreWorkflowTest {
                 BizException.class,
                 () -> directMessages.conversation(host.getId(), stranger.getId()));
         assertEquals(2, directMessageRepo.count());
+    }
+
+    @Test
+    void inAppNotificationsAggregateAndOpenFromTheirBusinessTargets() throws Exception {
+        var z = create();
+        join(z.id(), listener.getId());
+        userService.follow(host.getId(), listener.getId());
+        userService.follow(listener.getId(), host.getId());
+
+        notificationService.invite(z.id(), host.getId(), listener.getId());
+        directMessages.send(
+                listener.getId(), host.getId(), new DirectMessageRequest("第一条提醒"));
+        directMessages.send(
+                listener.getId(), host.getId(), new DirectMessageRequest("第二条提醒"));
+        queue.like(z.id(), z.nowPlaying().itemId(), listener.getId(), true);
+
+        var hostNotifications = notificationService.list(host.getId());
+        var message =
+                hostNotifications.stream()
+                        .filter(n -> n.type().equals(NotificationType.DIRECT_MESSAGE.name()))
+                        .findFirst()
+                        .orElseThrow();
+        assertEquals(2, message.eventCount());
+        assertEquals(listener.getId(), message.actorId());
+        assertTrue(
+                hostNotifications.stream()
+                        .anyMatch(n -> n.type().equals(NotificationType.TRACK_STARTED.name())));
+        assertTrue(
+                hostNotifications.stream()
+                        .anyMatch(n -> n.type().equals(NotificationType.TRACK_LIKE.name())));
+
+        var invite = notificationService.list(listener.getId()).stream()
+                .filter(n -> n.type().equals(NotificationType.ZONE_INVITE.name()))
+                .findFirst()
+                .orElseThrow();
+        assertEquals(z.id(), invite.zoneId());
+
+        String ownerToken = tokenFor(host.getId());
+        mvc.perform(
+                        get("/notifications/unread-count")
+                                .header("Authorization", "Bearer " + ownerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.count").value(3));
+        mvc.perform(
+                        put("/notifications/read-all")
+                                .header("Authorization", "Bearer " + ownerToken))
+                .andExpect(status().isOk());
+        assertEquals(0, notificationService.unreadCount(host.getId()));
+        assertTrue(notificationRepo.count() >= 4);
     }
 
     @Test

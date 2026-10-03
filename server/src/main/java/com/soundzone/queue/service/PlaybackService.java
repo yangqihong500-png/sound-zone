@@ -1,5 +1,6 @@
 package com.soundzone.queue.service;
 
+import com.soundzone.notification.service.NotificationService;
 import com.soundzone.queue.entity.*;
 import com.soundzone.queue.repository.QueueItemRepository;
 import com.soundzone.realtime.ZoneEvent;
@@ -27,6 +28,7 @@ public class PlaybackService {
     private final ApplicationEventPublisher events;
     private final Clock clock;
     private final TrackDurationPolicy durations;
+    private final NotificationService notifications;
 
     @Value("${soundzone.presence-grace-seconds:90}")
     private long graceSeconds;
@@ -126,6 +128,8 @@ public class PlaybackService {
             next.setStatus(QueueStatus.PLAYING);
             next.setStartedAt(nextStart);
             queue.saveAndFlush(next);
+            if (nextStart.plusSeconds(Math.max(1, next.getTrack().getDurationSec())).isAfter(now))
+                notifications.trackStarted(next);
             changed(zone);
         }
     }

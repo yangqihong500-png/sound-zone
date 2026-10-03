@@ -6,6 +6,8 @@ import com.soundzone.auth.service.CurrentUser;
 import com.soundzone.common.BizException;
 import com.soundzone.common.Result;
 import com.soundzone.common.ResultCode;
+import com.soundzone.notification.dto.ZoneInviteRequest;
+import com.soundzone.notification.service.NotificationService;
 import com.soundzone.zone.dto.*;
 import com.soundzone.zone.service.ZoneService;
 
@@ -29,6 +31,7 @@ public class ZoneController {
     private final CurrentUser current;
     private final ObjectMapper json;
     private final Validator validator;
+    private final NotificationService notifications;
 
     @GetMapping("/active")
     public Result<?> active(
@@ -87,6 +90,12 @@ public class ZoneController {
     @GetMapping("/{id}/invite")
     public Result<?> invite(@PathVariable Long id) {
         return Result.ok(Map.of("inviteCode", zones.invite(id, current.id())));
+    }
+
+    @PostMapping("/{id}/invites")
+    public Result<?> sendInvite(
+            @PathVariable Long id, @Valid @RequestBody ZoneInviteRequest request) {
+        return Result.ok(notifications.invite(id, current.id(), request.recipientId()));
     }
 
     @PostMapping("/{id}/heartbeat")

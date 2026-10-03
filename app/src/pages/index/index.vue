@@ -7,6 +7,13 @@
         <view class="home__logo-bar home__logo-bar--medium" />
       </view>
       <text class="home__brand">SoundZone</text>
+      <view class="home__notification" aria-label="Notifications" @click="goNotifications">
+        <view class="home__bell">
+          <view class="home__bell-body" />
+          <view class="home__bell-clapper" />
+        </view>
+        <text v-if="unreadCount" class="home__notification-badge">{{ unreadCount > 9 ? '9+' : unreadCount }}</text>
+      </view>
     </view>
 
     <view class="home__search">
@@ -77,7 +84,7 @@
 <script setup>
 import { ref, computed, watch, nextTick, onMounted, onBeforeUnmount } from 'vue'
 import { onShow, onPageScroll, onTabItemTap } from '@dcloudio/uni-app'
-import { SCENES, getZonesByScene, resolveMediaUrl } from '@/api/mock.js'
+import { SCENES, getZonesByScene, getUnreadNotificationCount, resolveMediaUrl } from '@/api/mock.js'
 import ZoneCard from '@/components/zone-card/zone-card.vue'
 import { sceneLabel as sceneDisplayLabel } from '@/constants/scenes.js'
 
@@ -86,6 +93,7 @@ const currentScene = ref('全部')
 const zones = ref([])
 const keyword = ref('')
 const discoverActive = ref(false)
+const unreadCount = ref(0)
 const featured = computed(() => zones.value[0] || null)
 const peekZones = computed(() => zones.value.slice(1, 3))
 const zoneColumns = computed(() => zones.value.reduce((columns, zone, index) => {
@@ -96,21 +104,24 @@ let searchVersion = 0
 let searchTimer = null
 let pageScrollTop = 0
 let feedOffsetTop = Number.POSITIVE_INFINITY
+let notificationTimer = null
 const discoverTriggerOffset = 64
 
-onShow(loadZones)
+onShow(() => { loadZones(); loadUnreadCount() })
 onPageScroll(({ scrollTop }) => updateDiscoverState(scrollTop))
 onMounted(() => {
   // #ifdef H5
   window.addEventListener('scroll', onH5Scroll, { passive: true })
   document.addEventListener('click', onH5TabClick, true)
   // #endif
+  notificationTimer = setInterval(loadUnreadCount, 15000)
 })
 onBeforeUnmount(() => {
   // #ifdef H5
   window.removeEventListener('scroll', onH5Scroll)
   document.removeEventListener('click', onH5TabClick, true)
   // #endif
+  clearInterval(notificationTimer)
 })
 function onH5Scroll() {
   // #ifdef H5
@@ -156,6 +167,10 @@ async function loadZones() {
     }
   } catch (e) { uni.showToast({ title: e.message, icon: 'none' }) }
 }
+async function loadUnreadCount() {
+  try { unreadCount.value = await getUnreadNotificationCount() }
+  catch { unreadCount.value = 0 }
+}
 function measureFeed() {
   // #ifdef H5
   const element = document.querySelector('.feed')
@@ -180,6 +195,7 @@ function switchScene(scene) {
 }
 function sceneLabel(scene) { return scene === '全部' ? 'All' : sceneDisplayLabel(scene) }
 function goZone(id) { uni.navigateTo({ url: '/pages/zone/detail?id=' + id }) }
+function goNotifications() { uni.navigateTo({ url: '/pages/notification/index' }) }
 // "More ↓"：滚动到本页的 explore zones 部分（往下滑即 discover 内容）
 function goDiscover() { uni.pageScrollTo({ selector: '.feed', duration: 300 }) }
 </script>
@@ -221,6 +237,69 @@ function goDiscover() { uni.pageScrollTo({ selector: '.feed', duration: 300 }) }
   font-weight: 800;
   letter-spacing: -1.2rpx;
   line-height: 1.15;
+}
+.home__notification {
+  position: relative;
+  width: 58rpx;
+  height: 58rpx;
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1rpx solid rgba(28,28,30,.08);
+  border-radius: 20rpx;
+  background: rgba(255,255,255,.78);
+  box-shadow: 0 8rpx 22rpx rgba(30,55,84,.06);
+}
+.home__bell { position: relative; width: 27rpx; height: 29rpx; }
+.home__bell-body {
+  position: absolute;
+  left: 4rpx;
+  top: 2rpx;
+  width: 19rpx;
+  height: 20rpx;
+  border: 3rpx solid $sz-text;
+  border-bottom: 0;
+  border-radius: 14rpx 14rpx 5rpx 5rpx;
+  box-sizing: border-box;
+}
+.home__bell-body::after {
+  content: '';
+  position: absolute;
+  left: -6rpx;
+  right: -6rpx;
+  bottom: -5rpx;
+  height: 3rpx;
+  border-radius: 999rpx;
+  background: $sz-text;
+}
+.home__bell-clapper {
+  position: absolute;
+  left: 11rpx;
+  bottom: 0;
+  width: 6rpx;
+  height: 6rpx;
+  border-radius: 50%;
+  background: $sz-text;
+}
+.home__notification-badge {
+  position: absolute;
+  top: -8rpx;
+  right: -8rpx;
+  min-width: 29rpx;
+  height: 29rpx;
+  padding: 0 6rpx;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 3rpx solid $sz-bg;
+  border-radius: 999rpx;
+  background: #F05F69;
+  color: #fff;
+  font-size: 17rpx;
+  font-weight: 700;
+  line-height: 1;
 }
 .home__search {
   height: 72rpx; display: flex; align-items: center; gap: 12rpx;

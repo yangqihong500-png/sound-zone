@@ -1,6 +1,6 @@
 -- ============================================================================
 -- 同频 SoundZone · MySQL 8 表结构
--- 说明：新库基线（22 张业务表）。旧库必须按顺序执行 migrations 下的版本脚本。
+-- 说明：新库基线（23 张业务表）。旧库必须按顺序执行 migrations 下的版本脚本。
 --       JPA 字段初值与数据库 DEFAULT 分开维护，启动使用 ddl-auto=validate。
 --
 -- 使用：空库执行本脚本；已有库执行版本化迁移，不要重建业务表。
@@ -232,6 +232,32 @@ CREATE TABLE IF NOT EXISTS sz_direct_message (
   KEY idx_message_recipient_sender (recipient_id,sender_id,created_at,id),
   CONSTRAINT fk_message_sender FOREIGN KEY(sender_id) REFERENCES sz_user(id),
   CONSTRAINT fk_message_recipient FOREIGN KEY(recipient_id) REFERENCES sz_user(id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- ----------------------------------------------------------------------------
+-- 11. 站内通知——私信/域邀请/歌曲开播/歌曲点赞
+-- ----------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS sz_notification (
+  id            BIGINT       NOT NULL AUTO_INCREMENT,
+  recipient_id  BIGINT       NOT NULL,
+  actor_id      BIGINT       DEFAULT NULL,
+  type          VARCHAR(32)  NOT NULL,
+  title         VARCHAR(160) NOT NULL,
+  body          VARCHAR(300) NOT NULL,
+  zone_id       BIGINT       DEFAULT NULL,
+  queue_item_id BIGINT       DEFAULT NULL,
+  message_id    BIGINT       DEFAULT NULL,
+  event_count   INT          NOT NULL DEFAULT 1,
+  read_at       DATETIME(6)  DEFAULT NULL,
+  created_at    DATETIME(6)  NOT NULL,
+  updated_at    DATETIME(6)  NOT NULL,
+  PRIMARY KEY (id),
+  KEY idx_notification_recipient_unread (recipient_id,read_at,updated_at,id),
+  KEY idx_notification_aggregate (recipient_id,type,queue_item_id,actor_id,read_at),
+  CONSTRAINT fk_notification_recipient FOREIGN KEY(recipient_id) REFERENCES sz_user(id),
+  CONSTRAINT fk_notification_actor FOREIGN KEY(actor_id) REFERENCES sz_user(id),
+  CONSTRAINT fk_notification_zone FOREIGN KEY(zone_id) REFERENCES sz_zone(id),
+  CONSTRAINT fk_notification_queue FOREIGN KEY(queue_item_id) REFERENCES sz_queue_item(id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- 新增：会话、互动当前状态、举报、业务事件及训练导出追踪

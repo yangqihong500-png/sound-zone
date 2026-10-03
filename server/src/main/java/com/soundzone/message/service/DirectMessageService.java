@@ -4,6 +4,7 @@ import com.soundzone.common.*;
 import com.soundzone.message.dto.*;
 import com.soundzone.message.entity.DirectMessage;
 import com.soundzone.message.repository.DirectMessageRepository;
+import com.soundzone.notification.service.NotificationService;
 import com.soundzone.user.entity.User;
 import com.soundzone.user.repository.*;
 
@@ -26,6 +27,7 @@ public class DirectMessageService {
     private final UserRepository users;
     private final FollowRepository follows;
     private final ApplicationEventPublisher events;
+    private final NotificationService notifications;
 
     @Transactional(readOnly = true)
     public List<DirectMessageDTO> conversation(Long viewerId, Long otherId) {
@@ -63,6 +65,7 @@ public class DirectMessageService {
         message.setRecipient(recipient);
         message.setBody(body);
         DirectMessage saved = messages.save(message);
+        notifications.directMessage(saved);
         events.publishEvent(new DirectMessageEvent(saved.getId(), senderId, recipientId));
         return DirectMessageDTO.from(saved);
     }

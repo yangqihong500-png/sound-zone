@@ -54,6 +54,11 @@ export const unfollowUser = (id) => del(`/users/${id}/follow`)
 export const getMyList = (kind) => get(`/users/me/${kind}`)
 export const getConversation = (userId) => get(`/messages/users/${userId}`)
 export const sendDirectMessage = (userId, body) => post(`/messages/users/${userId}`, { body })
+export const getNotifications = () => get('/notifications')
+export const getUnreadNotificationCount = () => get('/notifications/unread-count').then((data) => data.count || 0)
+export const markNotificationRead = (id) => put(`/notifications/${id}/read`)
+export const markAllNotificationsRead = () => put('/notifications/read-all')
+export const sendZoneInvite = (zoneId, recipientId) => post(`/zones/${zoneId}/invites`, { recipientId })
 export const resolveMediaUrl = (path) => path?.startsWith('/') ? API_BASE + path : (path || '')
 
 export async function uploadImage(zoneId, { filePath, queueItemId, trainingConsent }) {

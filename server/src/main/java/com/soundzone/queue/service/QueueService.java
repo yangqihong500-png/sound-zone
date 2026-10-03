@@ -3,6 +3,7 @@ package com.soundzone.queue.service;
 import com.soundzone.activity.service.ActivityService;
 import com.soundzone.common.*;
 import com.soundzone.queue.dto.*;
+import com.soundzone.notification.service.NotificationService;
 import com.soundzone.queue.entity.*;
 import com.soundzone.queue.repository.*;
 import com.soundzone.realtime.ZoneEvent;
@@ -41,6 +42,7 @@ public class QueueService {
     private final PlaybackService playback;
     private final ActivityService activity;
     private final ApplicationEventPublisher events;
+    private final NotificationService notifications;
     private final Clock clock;
 
     public QueueItemDTO requestSong(Long zoneId, SongRequest req, Long userId) {
@@ -106,9 +108,11 @@ public class QueueService {
             item.setLikes(item.getLikes() + 1);
             activity.record(userId, zoneId, itemId, "LIKE", 0);
             playback.changed(zone);
-            if (!userId.equals(item.getRequester().getId()))
+            if (!userId.equals(item.getRequester().getId())) {
+                notifications.trackLiked(item, like.getUser());
                 events.publishEvent(
                         new ZoneEvent(zoneId, "GLOW", item.getRequester().getId(), itemId));
+            }
         } else if (!active && previous.isPresent()) {
             likes.delete(previous.get());
             item.setLikes(Math.max(0, item.getLikes() - 1));

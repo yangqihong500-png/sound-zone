@@ -163,7 +163,7 @@
 <script setup>
 import { ref, computed, watch } from 'vue'
 import { onLoad, onShow, onUnload } from '@dcloudio/uni-app'
-import { getCooldown, collectTrack, joinZone, leaveZone, getInvite, reportZone } from '@/api/mock.js'
+import { getCooldown, collectTrack, joinZone, leaveZone, getInvite, getMyList, reportZone, sendZoneInvite } from '@/api/mock.js'
 import { session } from '@/api/session.js'
 import { playback, syncPlayer, positionSeconds, unlockAudio } from '@/services/player.js'
 import {
@@ -379,15 +379,16 @@ async function onCollect() {
 }
 function onMore() {
   const own = zone.value.hostId === session.userId
-  const options = ['举报', ...(own ? ['编辑域信息'] : []), ...(own && zone.value.visibility === 'PRIVATE' ? ['复制邀请链接'] : [])]
+  const options = ['举报', ...(own ? ['邀请关注者', '编辑域信息'] : []), ...(own && zone.value.visibility === 'PRIVATE' ? ['复制邀请链接'] : [])]
   uni.showActionSheet({ itemList: options, success: async ({ tapIndex }) => {
     const action = options[tapIndex]
     if (action === '举报') uni.showModal({ title: '举报', editable: true, placeholderText: '请说明举报原因', success: async (res) => {
       if (!res.confirm) return
       try { await reportZone(zoneId, res.content); toast('举报已提交') } catch (e) { toast(e.message) }
     } })
+    else if (action === '邀请关注者') await inviteFollower()
     else if (action === '编辑域信息') uni.navigateTo({ url: `/pages/zone/create?id=${zoneId}` })
-    else {
+    else if (action === '复制邀请链接') {
       try {
         const { inviteCode: code } = await getInvite(zoneId)
         const path = `/pages/zone/detail?id=${zoneId}&inviteCode=${encodeURIComponent(code)}`
@@ -400,6 +401,22 @@ function onMore() {
       } catch (e) { toast(e.message) }
     }
   } })
+}
+async function inviteFollower() {
+  try {
+    const following = await getMyList('following')
+    if (!following.length) { toast('请先关注想邀请的用户'); return }
+    const candidates = following.slice(0, 10)
+    uni.showActionSheet({
+      itemList: candidates.map((user) => `@${user.name}`),
+      success: async ({ tapIndex }) => {
+        try {
+          await sendZoneInvite(zoneId, candidates[tapIndex].id)
+          toast(`已邀请 @${candidates[tapIndex].name}`)
+        } catch (e) { toast(e.message) }
+      },
+    })
+  } catch (e) { toast(e.message) }
 }
 function onSuspend() {
   if (!suspendCurrentZone(zone.value)) return
