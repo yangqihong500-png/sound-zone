@@ -18,6 +18,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.*;
+import java.util.List;
 
 /** 单域数据库行锁下推进，客户端不能决定切歌。无需 Redis 或队列排序模型。 */
 @Service
@@ -154,6 +155,13 @@ public class PlaybackService {
                 .ifPresent(
                         q -> {
                             q.setStatus(QueueStatus.STOPPED); // 提前消散不冒充播放完成
+                            queue.save(q);
+                        });
+        queue.findByZoneIdAndStatusIn(
+                        zone.getId(), List.of(QueueStatus.QUEUED, QueueStatus.PRESET))
+                .forEach(
+                        q -> {
+                            q.setStatus(QueueStatus.STOPPED);
                             queue.save(q);
                         });
         zone.setStateVersion(zone.getStateVersion() + 1);

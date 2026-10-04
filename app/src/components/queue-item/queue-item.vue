@@ -15,6 +15,7 @@
       <text class="queue-item__like-icon" :class="{ liked }">{{ liked ? '♥' : '♡' }}</text>
       <text class="queue-item__like-count" :class="{ liked }">{{ count }}</text>
     </view>
+    <button v-if="removable" class="queue-item__remove" aria-label="Remove from queue" @click.stop="$emit('remove', item)">×</button>
   </view>
 </template>
 
@@ -33,9 +34,10 @@ const props = defineProps({
   item: { type: Object, required: true },
   rank: { type: Number, default: 0 },
   playing: { type: Boolean, default: false },
+  removable: { type: Boolean, default: false },
 })
 
-defineEmits(['user'])
+defineEmits(['user', 'remove'])
 const liked = ref(!!props.item.liked)
 const count = ref(props.item.likes || 0)
 const busy = ref(false)
@@ -144,5 +146,22 @@ async function onLike() {
       color: $sz-control;
     }
   }
+
+  &__remove {
+    display: flex;
+    width: 48rpx;
+    height: 48rpx;
+    min-height: 0;
+    padding: 0;
+    align-items: center;
+    justify-content: center;
+    border: 0;
+    border-radius: 50%;
+    background: rgba(0,0,0,.055);
+    color: $sz-text-secondary;
+    font-size: 30rpx;
+    line-height: 1;
+  }
+  &__remove::after { border: 0; }
 }
 </style>

@@ -130,7 +130,9 @@
             :key="song.itemId"
             :item="song"
             :rank="i + 1"
+            :removable="song.userId === session.userId"
             @user="goUserHome"
+            @remove="confirmWithdraw"
           />
           <view v-if="!zone.queue.length && !zone.nowPlaying" class="queue-card__empty">
             The queue is empty
@@ -149,7 +151,9 @@
             :key="song.itemId"
             :item="song"
             :rank="i + 1"
+            :removable="song.userId === session.userId"
             @user="goUserHome"
+            @remove="confirmWithdraw"
           />
         </view>
       </view>
@@ -175,6 +179,8 @@
       :visible="showSongPopup"
       :cooldown="cooldown"
       :zone-id="zone.id"
+      :filter-mode="zone.filterMode"
+      :filter-tags="zone.filterTags || []"
       @close="showSongPopup = false"
       @uploaded="onSongUploaded"
       @toast="toast"
@@ -194,7 +200,7 @@
 <script setup>
 import { ref, computed, watch } from 'vue'
 import { onLoad, onShow, onUnload } from '@dcloudio/uni-app'
-import { getCooldown, collectTrack, joinZone, leaveZone, getInvite, getMyList, reportZone, sendZoneInvite } from '@/api/mock.js'
+import { getCooldown, collectTrack, joinZone, leaveZone, getInvite, getMyList, reportZone, sendZoneInvite, withdrawQueueItem } from '@/api/mock.js'
 import { session } from '@/api/session.js'
 import { playback, syncPlayer, positionSeconds, unlockAudio } from '@/services/player.js'
 import {
@@ -215,6 +221,7 @@ import UploadImagePopup from '@/components/upload-image-popup/upload-image-popup
 const zone = ref(null)
 const showSongPopup = ref(false)
 const showImagePopup = ref(false)
+const withdrawingItemId = ref(null)
 const cooldown = ref(0)
 const progress = ref(0)
 const pomodoroRemaining = ref(0)
@@ -397,6 +404,24 @@ function showGlow() {
   glowTimer = setTimeout(() => { glowing.value = false }, 1800)
 }
 function onUploadSong() { if (!cooldown.value) showSongPopup.value = true }
+function confirmWithdraw(item) {
+  if (withdrawingItemId.value) return
+  uni.showModal({
+    title: 'Remove from queue?',
+    content: `“${item.title}” will no longer play in this zone.`,
+    confirmText: 'Remove',
+    success: async ({ confirm }) => {
+      if (!confirm || withdrawingItemId.value) return
+      withdrawingItemId.value = item.itemId
+      try {
+        await withdrawQueueItem(item.itemId)
+        await refresh()
+        toast('Removed from queue')
+      } catch (e) { toast(e.message) }
+      finally { withdrawingItemId.value = null }
+    },
+  })
+}
 function formatSessionDuration(seconds = 0) {
   const minutes = Math.floor(Math.max(0, seconds) / 60)
   if (minutes < 60) return `${minutes} 分钟`

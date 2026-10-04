@@ -26,7 +26,7 @@
             <view class="upload-track__copy">
               <text class="upload-track__title">{{ entry.item.title }}</text>
               <text class="upload-track__artist">{{ entry.item.artist }}</text>
-              <text class="upload-track__meta">{{ entry.zoneName }} · {{ statusNames[entry.item.status] }}</text>
+              <text class="upload-track__meta">{{ entry.zoneName }} · {{ uploadStatus(entry) }}</text>
             </view>
             <view class="upload-track__likes" aria-label="Likes received">
               <text class="upload-track__heart">♥</text>
@@ -85,6 +85,10 @@ const loading = ref(true)
 const error = ref('')
 const names = { zones: 'My Zones', uploads: 'My Uploads', following: 'Following', collections: 'Favorites' }
 const statusNames = { PLAYING: 'Playing', QUEUED: 'Queued', PRESET: 'Preloaded', PLAYED: 'Played', STOPPED: 'Zone ended', REMOVED: 'History' }
+function uploadStatus(entry) {
+  if (entry.zoneStatus === 'ENDED' && ['PLAYING', 'QUEUED', 'PRESET'].includes(entry.item.status)) return 'Zone ended'
+  return statusNames[entry.item.status] || entry.item.status
+}
 function sceneName(scene) { return sceneLabel(scene) }
 function userInitial(name) { return (name || '?').trim().charAt(0).toUpperCase() || '?' }
 onLoad((option) => { kind.value = names[option.kind] ? option.kind : 'zones'; uni.setNavigationBarTitle({ title: names[kind.value] }) })

@@ -15,6 +15,8 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Clock;
+import java.time.LocalDateTime;
 import java.util.*;
 
 @Service
@@ -28,6 +30,7 @@ public class DirectMessageService {
     private final FollowRepository follows;
     private final ApplicationEventPublisher events;
     private final NotificationService notifications;
+    private final Clock clock;
 
     @Transactional(readOnly = true)
     public List<DirectMessageDTO> conversation(Long viewerId, Long otherId) {
@@ -64,6 +67,7 @@ public class DirectMessageService {
         message.setSender(sender);
         message.setRecipient(recipient);
         message.setBody(body);
+        message.setCreatedAt(LocalDateTime.now(clock));
         DirectMessage saved = messages.save(message);
         notifications.directMessage(saved);
         events.publishEvent(new DirectMessageEvent(saved.getId(), senderId, recipientId));

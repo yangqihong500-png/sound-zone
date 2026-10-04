@@ -38,6 +38,7 @@ export const reportZone = (id, reason) => post(`/zones/${id}/reports`, { reason 
 export const uploadSong = (zoneId, trackId) => post(`/zones/${zoneId}/queue`, { trackId })
 export const getCooldown = (zoneId) => get(`/zones/${zoneId}/cooldown`).then((d) => d.remainSeconds)
 export const likeQueueItem = (itemId, active) => put(`/queue/${itemId}/like`, { active })
+export const withdrawQueueItem = (itemId) => del(`/queue/${itemId}`)
 export const searchTracks = (keyword) => get('/tracks/search', { keyword: keyword || '' })
 export const getPlaybackSource = (zoneId, trackId) => get(`/tracks/${trackId}/playback`, { zoneId })
 export const getMomentFeed = (zoneId) => get(`/zones/${zoneId}/moments/feed`)

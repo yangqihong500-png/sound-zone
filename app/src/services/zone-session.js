@@ -204,7 +204,11 @@ export function leaveCurrentZone() {
     trackTitle: '',
     artist: '',
   })
-  if (id) return leaveZone(id).catch(() => {}) // 断网由服务端心跳宽限收口
+  if (id) {
+    return leaveZone(id)
+      .catch(() => {}) // 断网由服务端心跳宽限收口
+      .finally(() => uni.$emit('soundzone:zone-left', { zoneId: id }))
+  }
   return Promise.resolve()
 }
 

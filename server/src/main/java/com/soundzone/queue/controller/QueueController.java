@@ -33,6 +33,12 @@ public class QueueController {
         return Result.ok(queue.like(locator.queueZone(itemId), itemId, current.id(), true));
     }
 
+    @DeleteMapping("/queue/{itemId}")
+    public Result<?> withdraw(@PathVariable Long itemId) {
+        queue.withdraw(locator.queueZone(itemId), itemId, current.id());
+        return Result.ok();
+    }
+
     @GetMapping("/zones/{zoneId}/cooldown")
     public Result<?> cooldown(@PathVariable Long zoneId) {
         return Result.ok(queue.cooldown(zoneId, current.id()));

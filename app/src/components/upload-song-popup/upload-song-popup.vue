@@ -34,6 +34,7 @@
           v-for="track in tracks"
           :key="track.id"
           class="track-row"
+          :class="{ 'track-row--blocked': isTrackBlocked(track) }"
           @click="onPick(track)"
         >
           <view class="track-row__cover" :style="{ backgroundColor: track.coverColor }">
@@ -45,7 +46,9 @@
             <text class="track-row__artist">{{ track.artist }}</text>
             <text class="track-row__source">{{ sourceLabel(track) }} · {{ formatDuration(track.durationSec) }}</text>
           </view>
-          <text class="track-row__action" :class="{ 'track-row__action--disabled': cooldown > 0 }">{{ cooldown > 0 ? formatCooldown(cooldown) : 'Add' }}</text>
+          <text class="track-row__action" :class="{ 'track-row__action--disabled': cooldown > 0 || isTrackBlocked(track) }">
+            {{ cooldown > 0 ? formatCooldown(cooldown) : isTrackBlocked(track) ? 'Not allowed' : 'Add' }}
+          </text>
         </view>
         <view v-if="!tracks.length" class="track-list__empty">No matching tracks</view>
       </scroll-view>
@@ -63,18 +66,22 @@
  * 交互：搜索 → 点选即上传（冷却校验与过滤由 mock.uploadSong 完成，与后端一致）
  */
 import { ref, watch } from 'vue'
-import { searchTracks, uploadSong } from '@/api/mock.js'
+import { getTagCatalog, searchTracks, uploadSong } from '@/api/mock.js'
 
 const props = defineProps({
   visible: { type: Boolean, default: false },
   cooldown: { type: Number, default: 0 },
   zoneId: { type: Number, required: true },
+  filterMode: { type: String, default: 'NONE' },
+  filterTags: { type: Array, default: () => [] },
 })
 const emit = defineEmits(['close', 'uploaded', 'toast'])
 
 const keyword = ref('')
 const tracks = ref([])
+const tagCatalog = ref(null)
 const uploading = ref(false)
+const tagCategories = ['语言', '年代', '风格', '情绪']
 let searchVersion = 0
 let searchTimer = null
 
@@ -82,6 +89,10 @@ let searchTimer = null
 watch(() => props.visible, async (v) => {
   if (v) {
     keyword.value = ''
+    if (!tagCatalog.value) {
+      try { tagCatalog.value = await getTagCatalog() }
+      catch (e) { emit('toast', e.message) }
+    }
     await loadTracks('')
   }
 })
@@ -97,6 +108,10 @@ async function loadTracks(kw) {
 }
 async function onPick(track) {
   if (props.cooldown > 0 || uploading.value) return // 冷却中禁止上传
+  if (isTrackBlocked(track)) {
+    emit('toast', props.filterMode === 'BAN' ? 'Blocked by this zone’s tags' : 'Does not match every allowed category')
+    return
+  }
   uploading.value = true
   try {
     // 真实接口：成功返回 QueueItemDTO，失败由 request 层 reject（带 message）
@@ -108,6 +123,17 @@ async function onPick(track) {
     // 冷却 / 过滤拒绝：轻量提示（决议：不使用强弹窗打断）
     emit('toast', e.message || 'Upload failed')
   } finally { uploading.value = false }
+}
+
+function isTrackBlocked(track) {
+  if (props.filterMode === 'NONE' || !props.filterTags.length) return false
+  const trackTags = track.tags || []
+  if (props.filterMode === 'BAN') return trackTags.some((tag) => props.filterTags.includes(tag))
+  if (!tagCatalog.value) return true
+  return tagCategories.some((category) => {
+    const selected = (tagCatalog.value[category] || []).filter((tag) => props.filterTags.includes(tag))
+    return selected.length > 0 && !selected.some((tag) => trackTags.includes(tag))
+  })
 }
 
 function onMaskClick() {
@@ -244,6 +270,8 @@ function sourceLabel(track) {
   gap: $sz-gap-sm;
   padding: 18rpx 4rpx;
   border-bottom: 1rpx solid rgba(0,0,0,.06);
+
+  &--blocked { opacity: .58; }
 
   &__cover {
     width: 78rpx;

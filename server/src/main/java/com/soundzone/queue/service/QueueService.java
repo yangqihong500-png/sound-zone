@@ -103,6 +103,21 @@ public class QueueService {
         return QueueItemDTO.from(item, null, active);
     }
 
+    public void withdraw(Long zoneId, Long itemId, Long userId) {
+        Zone zone = access.lock(zoneId);
+        access.member(zoneId, userId);
+        QueueItem item =
+                queue.findById(itemId)
+                        .orElseThrow(() -> new BizException(ResultCode.QUEUE_ITEM_NOT_FOUND));
+        if (!item.getZone().getId().equals(zoneId)) throw new BizException(ResultCode.FORBIDDEN);
+        if (!item.getRequester().getId().equals(userId))
+            throw new BizException(ResultCode.NOT_RESOURCE_OWNER);
+        if (!List.of(QueueStatus.QUEUED, QueueStatus.PRESET).contains(item.getStatus()))
+            throw new BizException(ResultCode.PARAM_INVALID, "只能撤回尚未播放的歌曲");
+        item.setStatus(QueueStatus.REMOVED);
+        playback.changed(zone);
+    }
+
     public long cooldownRemainSeconds(Long zoneId, Long userId) {
         Zone zone = access.lock(zoneId);
         access.member(zoneId, userId);

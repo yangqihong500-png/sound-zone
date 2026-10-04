@@ -719,6 +719,52 @@ class CoreWorkflowTest {
     }
 
     @Test
+    void endingZoneStopsEveryUnplayedQueueItem() {
+        var z = create();
+        join(z.id(), listener.getId());
+
+        zones.leaveZone(z.id(), host.getId());
+        zones.leaveZone(z.id(), listener.getId());
+
+        assertEquals(ZoneStatus.ENDED, zoneRepo.findById(z.id()).orElseThrow().getStatus());
+        assertEquals(
+                Set.of(QueueStatus.STOPPED),
+                queueRepo.findAll().stream().map(QueueItem::getStatus).collect(java.util.stream.Collectors.toSet()));
+    }
+
+    @Test
+    void queuedSongCanOnlyBeWithdrawnByItsUploader() throws Exception {
+        var z = create();
+        join(z.id(), listener.getId());
+        var added =
+                queue.requestSong(
+                        z.id(), new SongRequest(songs.get(3).getId(), null), listener.getId());
+        assertEquals("QUEUED", added.status());
+
+        var ownershipError =
+                assertThrows(
+                        BizException.class,
+                        () -> queue.withdraw(z.id(), added.itemId(), host.getId()));
+        assertEquals(ResultCode.NOT_RESOURCE_OWNER, ownershipError.getResultCode());
+        assertThrows(
+                BizException.class,
+                () -> queue.withdraw(z.id(), z.nowPlaying().itemId(), host.getId()));
+
+        mvc.perform(
+                        delete("/queue/" + added.itemId())
+                                .header(
+                                        "Authorization",
+                                        "Bearer " + tokenFor(listener.getId())))
+                .andExpect(status().isOk());
+        assertEquals(
+                QueueStatus.REMOVED,
+                queueRepo.findById(added.itemId()).orElseThrow().getStatus());
+        assertTrue(
+                zones.getDetail(z.id(), listener.getId()).queue().stream()
+                        .noneMatch(item -> item.itemId().equals(added.itemId())));
+    }
+
+    @Test
     void sharedPomodoroPromotesPresetSongsWithoutInterruptingCurrentTrack() {
         var ids = songs.subList(0, 3).stream().map(Track::getId).toList();
         var request =
@@ -1003,6 +1049,9 @@ class CoreWorkflowTest {
     @Test
     void thirtyMinuteWindowConsentAndCollectionStatesPersist() throws Exception {
         var z = create();
+        var resident = zoneRepo.findById(z.id()).orElseThrow();
+        resident.setDemoResident(true);
+        zoneRepo.saveAndFlush(resident);
         join(z.id(), listener.getId());
         var shared = share(z, false);
         assertTrue(((List<?>) training.export().get("items")).isEmpty());
@@ -1148,6 +1197,7 @@ class CoreWorkflowTest {
                         listener.getId(),
                         host.getId(),
                         new DirectMessageRequest("  在听同一首歌吗？  "));
+        assertEquals(LocalDateTime.now(clock), first.createdAt());
         var reply =
                 directMessages.send(
                         host.getId(),

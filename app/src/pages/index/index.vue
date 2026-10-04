@@ -107,6 +107,7 @@ const discoverTriggerOffset = 64
 onShow(() => { loadZones(); loadUnreadCount() })
 onPageScroll(({ scrollTop }) => updateDiscoverState(scrollTop))
 onMounted(() => {
+  uni.$on('soundzone:zone-left', loadZones)
   // #ifdef H5
   window.addEventListener('scroll', onH5Scroll, { passive: true })
   document.addEventListener('click', onH5TabClick, true)
@@ -114,6 +115,7 @@ onMounted(() => {
   notificationTimer = setInterval(loadUnreadCount, 15000)
 })
 onBeforeUnmount(() => {
+  uni.$off('soundzone:zone-left', loadZones)
   // #ifdef H5
   window.removeEventListener('scroll', onH5Scroll)
   document.removeEventListener('click', onH5TabClick, true)
