@@ -3,7 +3,10 @@ package com.soundzone.user.controller;
 import com.soundzone.auth.service.CurrentUser;
 import com.soundzone.common.*;
 import com.soundzone.moment.service.MomentService;
+import com.soundzone.user.dto.UpdateProfileRequest;
 import com.soundzone.user.service.UserService;
+
+import jakarta.validation.Valid;
 
 import lombok.RequiredArgsConstructor;
 
@@ -27,6 +30,16 @@ public class UserController {
     @PostMapping(value = "/me/cover", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public Result<?> updateCover(@RequestParam("file") MultipartFile file) {
         return Result.ok(users.updateCover(current.id(), file));
+    }
+
+    @PostMapping(value = "/me/avatar", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public Result<?> updateAvatar(@RequestParam("file") MultipartFile file) {
+        return Result.ok(users.updateAvatar(current.id(), file));
+    }
+
+    @PutMapping("/me/profile")
+    public Result<?> updateProfile(@Valid @RequestBody UpdateProfileRequest request) {
+        return Result.ok(users.updateName(current.id(), request.name()));
     }
 
     @PostMapping("/{id}/follow")

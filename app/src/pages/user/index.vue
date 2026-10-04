@@ -1,7 +1,9 @@
 <template>
   <view class="page">
-    <profile-hero :user="user" owner :cover-url="coverUrl" />
+    <profile-hero :user="user" owner :cover-url="coverUrl" :avatar-url="avatarUrl" />
     <view class="page__head-actions">
+      <button class="page__action page__action--dark" :disabled="avatarBusy" @click="changeAvatar">{{ avatarBusy ? '上传中…' : '更换头像' }}</button>
+      <button class="page__action" :disabled="nameBusy" @click="changeName">修改 ID</button>
       <button class="page__action" :disabled="coverBusy" @click="changeCover">{{ coverBusy ? '上传中…' : '更换背景' }}</button>
     </view>
 
@@ -43,16 +45,19 @@
 <script setup>
 import { ref, computed } from 'vue'
 import { onShow } from '@dcloudio/uni-app'
-import { getCurrentUser, getListeningSummary, getMyList, resolveMediaUrl, uploadProfileCover } from '@/api/mock.js'
+import { getCurrentUser, getListeningSummary, getMyList, resolveMediaUrl, updateProfileName, uploadProfileAvatar, uploadProfileCover } from '@/api/mock.js'
 import { session, logoutAccount } from '@/api/session.js'
 import ProfileHero from '@/components/profile-hero/profile-hero.vue'
 
-const user = ref({ id: null, name: 'Loading…', avatarColor: '#8C9BAB', coverUrl: '', stats: { uploads: 0, likes: 0, moments: 0, following: 0 } })
+const user = ref({ id: null, name: 'Loading…', avatarColor: '#8C9BAB', avatarUrl: '', coverUrl: '', stats: { uploads: 0, likes: 0, moments: 0, following: 0 } })
 const listening = ref({ totalSeconds: 0 })
 const zones = ref([])
 const zonesLoaded = ref(false)
 const coverBusy = ref(false)
+const avatarBusy = ref(false)
+const nameBusy = ref(false)
 const coverUrl = computed(() => resolveMediaUrl(user.value.coverUrl))
+const avatarUrl = computed(() => resolveMediaUrl(user.value.avatarUrl))
 const menus = [
   { title: '我创建的域', kind: 'zones', icon: '◎' },
   { title: '上传的歌曲', kind: 'uploads', icon: '♫' },
@@ -108,6 +113,43 @@ function changeCover() {
     },
   })
 }
+function changeAvatar() {
+  if (avatarBusy.value) return
+  uni.chooseImage({ count: 1, sizeType: ['compressed'], sourceType: ['album', 'camera'], success: async ({ tempFilePaths }) => {
+    const filePath = tempFilePaths?.[0]
+    if (!filePath) return
+    avatarBusy.value = true
+    try {
+      const updated = await uploadProfileAvatar(filePath)
+      user.value = { ...user.value, avatarUrl: updated.avatarUrl }
+      uni.showToast({ title: '头像已更新', icon: 'none' })
+    } catch (e) { uni.showToast({ title: e.message || '上传失败', icon: 'none' }) }
+    finally { avatarBusy.value = false }
+  } })
+}
+function changeName() {
+  if (nameBusy.value) return
+  uni.showModal({
+    title: '修改用户 ID',
+    content: '公开资料和账号登录名会一起更新。',
+    editable: true,
+    placeholderText: user.value.name || '',
+    confirmText: '保存',
+    success: async ({ confirm, content }) => {
+      if (!confirm) return
+      const name = (content || '').trim()
+      if (name.length < 2 || name.length > 32) { uni.showToast({ title: '请输入 2 到 32 个字符', icon: 'none' }); return }
+      nameBusy.value = true
+      try {
+        const updated = await updateProfileName(name)
+        user.value = { ...user.value, name: updated.name }
+        session.name = updated.name
+        uni.showToast({ title: '用户 ID 已更新', icon: 'none' })
+      } catch (e) { uni.showToast({ title: e.message || '修改失败', icon: 'none' }) }
+      finally { nameBusy.value = false }
+    },
+  })
+}
 async function onAccount() {
   if (session.guest) { uni.navigateTo({ url: '/pages/auth/account' }); return }
   uni.showModal({ title: 'Log out?', content: 'You can sign in again with your username and password.', success: async ({ confirm }) => {
@@ -120,8 +162,9 @@ async function onAccount() {
 
 <style lang="scss" scoped>
 .page { min-height: 100vh; box-sizing: border-box; padding: 30rpx 32rpx 170rpx; background: $sz-bg; }
-.page__head-actions { display: flex; justify-content: flex-end; margin: 22rpx 20rpx 0; }
-.page__action { width: 190rpx; margin: 0; padding: 11rpx 12rpx; border: 1rpx solid $sz-control-border; border-radius: 999rpx; background: #fff; color: $sz-control; font-size: 22rpx; font-weight: 600; white-space: nowrap; }
+.page__head-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 12rpx; margin: 22rpx 20rpx 0; }
+.page__action { width: auto; min-width: 150rpx; margin: 0; padding: 11rpx 20rpx; border: 1rpx solid $sz-control-border; border-radius: 999rpx; background: #fff; color: $sz-control; font-size: 21rpx; font-weight: 600; white-space: nowrap; }
+.page__action--dark { border-color: $sz-control; background: $sz-control; color: #fff; }
 .page__action[disabled] { opacity: .55; }
 .stats { display: flex; margin-top: 34rpx; padding: 27rpx 0; border-top: 1rpx solid #e2e7ee; border-bottom: 1rpx solid #e2e7ee; }
 .stats__item { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: center; }

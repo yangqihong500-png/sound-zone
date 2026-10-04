@@ -490,6 +490,82 @@ class CoreWorkflowTest {
     }
 
     @Test
+    void profileIdentityCanUpdatePublicIdAvatarAndRegisteredLoginName() throws Exception {
+        String ownerToken = tokenFor(host.getId());
+        mvc.perform(
+                        put("/users/me/profile")
+                                .contentType("application/json")
+                                .content("{\"name\":\"New.Listener\"}"))
+                .andExpect(status().isUnauthorized());
+        mvc.perform(
+                        put("/users/me/profile")
+                                .header("Authorization", "Bearer " + ownerToken)
+                                .contentType("application/json")
+                                .content("{\"name\":\"New.Listener\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.name").value("New.Listener"));
+        assertEquals("New.Listener", users.findById(host.getId()).orElseThrow().getName());
+        mvc.perform(
+                        put("/users/me/profile")
+                                .header("Authorization", "Bearer " + ownerToken)
+                                .contentType("application/json")
+                                .content("{\"name\":\"" + listener.getName() + "\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value(1001));
+
+        var uploaded =
+                mvc.perform(
+                                multipart("/users/me/avatar")
+                                        .file(image())
+                                        .header("Authorization", "Bearer " + ownerToken))
+                        .andExpect(status().isOk())
+                        .andExpect(jsonPath("$.data.avatarUrl").isString())
+                        .andReturn();
+        String avatarUrl =
+                json.readTree(uploaded.getResponse().getContentAsString())
+                        .path("data")
+                        .path("avatarUrl")
+                        .asText();
+        assertTrue(avatarUrl.startsWith("/profile-avatars/avatar-"));
+        assertEquals(avatarUrl, userService.getProfile(host.getId(), listener.getId()).avatarUrl());
+        mvc.perform(get(avatarUrl))
+                .andExpect(status().isOk())
+                .andExpect(content().contentType("image/jpeg"));
+        mvc.perform(get("/profile-avatars/avatar-invalid.jpg")).andExpect(status().isNotFound());
+
+        var replacement =
+                mvc.perform(
+                                multipart("/users/me/avatar")
+                                        .file(image())
+                                        .header("Authorization", "Bearer " + ownerToken))
+                        .andExpect(status().isOk())
+                        .andReturn();
+        String replacementUrl =
+                json.readTree(replacement.getResponse().getContentAsString())
+                        .path("data")
+                        .path("avatarUrl")
+                        .asText();
+        assertNotEquals(avatarUrl, replacementUrl);
+        mvc.perform(get(avatarUrl)).andExpect(status().isNotFound());
+        mvc.perform(get(replacementUrl)).andExpect(status().isOk());
+
+        userService.follow(listener.getId(), host.getId());
+        assertEquals(
+                replacementUrl, userService.following(listener.getId()).get(0).get("avatarUrl"));
+
+        var guest = sessions.guest();
+        var registered = sessions.register("Profile_User", "secure-pass-123", guest.token());
+        userService.updateName(registered.userId(), "Renamed_User");
+        sessions.logout(registered.token());
+        assertEquals(
+                registered.userId(),
+                sessions.login("renamed_user", "secure-pass-123").userId());
+        assertThrows(
+                BizException.class,
+                () -> sessions.login("profile_user", "secure-pass-123"));
+    }
+
+    @Test
     void localCatalogMediaServesCoverAndRangeAudio() throws Exception {
         var cover =
                 java.nio.file.Path.of(

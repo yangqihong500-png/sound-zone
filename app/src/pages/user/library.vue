@@ -37,7 +37,8 @@
         <template v-else-if="kind === 'following'">
           <view class="following-user">
             <view class="following-user__avatar" :style="{ backgroundColor: entry.avatarColor || '#A8B8C8' }">
-              <text class="following-user__initial">{{ userInitial(entry.name) }}</text>
+              <image v-if="entry.avatarUrl" class="following-user__avatar-image" :src="resolveMediaUrl(entry.avatarUrl)" mode="aspectFill" />
+              <text v-else class="following-user__initial">{{ userInitial(entry.name) }}</text>
             </view>
             <text class="following-user__name">{{ entry.name }}</text>
           </view>
@@ -75,7 +76,7 @@
 <script setup>
 import { ref } from 'vue'
 import { onLoad, onShow } from '@dcloudio/uni-app'
-import { getMyList, unfollowUser, removeCollection } from '@/api/mock.js'
+import { getMyList, unfollowUser, removeCollection, resolveMediaUrl } from '@/api/mock.js'
 import { sceneLabel } from '@/constants/scenes.js'
 import MomentCard from '@/components/moment-card/moment-card.vue'
 const kind = ref('zones')
@@ -213,10 +214,13 @@ const openChat = (userId) => uni.navigateTo({ url: `/pages/message/chat?userId=$
     display: flex;
     align-items: center;
     justify-content: center;
+    overflow: hidden;
     border: 3rpx solid rgba(255,255,255,.88);
     border-radius: 50%;
     box-shadow: 0 8rpx 22rpx rgba(40,44,52,.13);
   }
+
+  &__avatar-image { width: 100%; height: 100%; }
 
   &__initial { color: #fff; font-size: 32rpx; font-weight: 600; }
 

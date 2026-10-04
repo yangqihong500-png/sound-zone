@@ -16,7 +16,7 @@ public class User {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    /** 昵称，全局唯一 */
+    /** 公开用户 ID，全局唯一；注册账号同时用作登录名。 */
     @Column(nullable = false, unique = true, length = 32)
     private String name;
 
@@ -24,9 +24,13 @@ public class User {
     @Column(unique = true, length = 128)
     private String hostSubject;
 
-    /** 头像占位色（Demo 阶段与前端一致，正式版替换为 COS 头像 URL） */
+    /** 未上传头像时使用的占位色。 */
     @Column(nullable = false, length = 16)
     private String avatarColor = "#8C9BAB";
+
+    /** 用户主动上传的公开头像；为空时继续显示占位色与名字首字。 */
+    @Column(length = 512)
+    private String avatarUrl;
 
     /** 用户主动上传的公开主页背景；未上传时前端显示默认唱片画面。 */
     @Column(length = 512)

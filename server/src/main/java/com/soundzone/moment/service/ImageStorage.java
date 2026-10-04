@@ -33,6 +33,11 @@ public class ImageStorage {
         return store(file, "profile-" + UUID.randomUUID() + ".jpg");
     }
 
+    /** 用户头像是公开资料，使用独立前缀，避免与主页背景或私密动态混淆。 */
+    public String storeProfileAvatar(MultipartFile file) {
+        return store(file, "avatar-" + UUID.randomUUID() + ".jpg");
+    }
+
     private String store(MultipartFile file, String key) {
         if (file == null || file.isEmpty() || file.getSize() > 5 * 1024 * 1024)
             throw new BizException(ResultCode.PARAM_INVALID, "请选择 5MB 内的 JPEG 或 PNG 图片");
@@ -111,9 +116,23 @@ public class ImageStorage {
         return resolveStoredKey(key);
     }
 
+    public Path resolveProfileAvatar(String key) {
+        if (key == null || !key.matches("avatar-[0-9a-f-]{36}\\.jpg"))
+            throw new BizException(ResultCode.PROFILE_AVATAR_NOT_FOUND);
+        return resolveStoredKey(key);
+    }
+
     public void deleteProfileCover(String key) {
         try {
             Files.deleteIfExists(resolveProfileCover(key));
+        } catch (IOException | BizException ignored) {
+            /* 数据库已提交；旧版本文件可由后续存储清理回收。 */
+        }
+    }
+
+    public void deleteProfileAvatar(String key) {
+        try {
+            Files.deleteIfExists(resolveProfileAvatar(key));
         } catch (IOException | BizException ignored) {
             /* 数据库已提交；旧版本文件可由后续存储清理回收。 */
         }

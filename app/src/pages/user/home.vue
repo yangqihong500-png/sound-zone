@@ -6,7 +6,7 @@
     <view v-if="loading" class="state"><text>Loading…</text></view>
     <view v-else-if="error" class="state"><text class="state__icon">?</text><text>{{ error }}</text><button class="state__button" @click="goBack">返回</button></view>
     <view v-else-if="user" class="page__body">
-      <profile-hero :user="user" :cover-url="coverUrl" />
+      <profile-hero :user="user" :cover-url="coverUrl" :avatar-url="avatarUrl" />
       <text class="page__description">在 SoundZone 一起听歌的人，声音总会留下痕迹。</text>
       <view class="page__actions">
         <button v-if="isMe" class="page__button page__button--dark" @click="goMe">回到 Me</button>
@@ -46,6 +46,7 @@ const followed = ref(false)
 const followBusy = ref(false)
 const isMe = computed(() => user.value && user.value.id === session.userId)
 const coverUrl = computed(() => resolveMediaUrl(user.value?.coverUrl))
+const avatarUrl = computed(() => resolveMediaUrl(user.value?.avatarUrl))
 
 onLoad(async (option) => {
   const userId = Number(option.userId)

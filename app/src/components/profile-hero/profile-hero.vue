@@ -11,7 +11,8 @@
     </view>
     <view class="profile-hero__identity">
       <view class="profile-hero__avatar" :style="{ backgroundColor: user.avatarColor || '#8C9BAB' }">
-        <text>{{ initial }}</text>
+        <image v-if="avatarUrl" class="profile-hero__avatar-image" :src="avatarUrl" mode="aspectFill" aria-label="用户头像" />
+        <text v-else>{{ initial }}</text>
       </view>
       <view class="profile-hero__names">
         <text class="profile-hero__name">{{ user.name || 'Loading…' }}</text>
@@ -28,6 +29,7 @@ const props = defineProps({
   user: { type: Object, required: true },
   owner: { type: Boolean, default: false },
   coverUrl: { type: String, default: '' },
+  avatarUrl: { type: String, default: '' },
 })
 const initial = computed(() => (props.user.name || '?').trim().charAt(0).toUpperCase() || '?')
 const serial = computed(() => String(props.user.id || 0).padStart(3, '0'))
@@ -53,7 +55,8 @@ const serial = computed(() => String(props.user.id || 0).padStart(3, '0'))
 .profile-hero__glass { position: absolute; z-index: 3; right: 22rpx; bottom: 21rpx; padding: 13rpx 20rpx; border: 1rpx solid rgba(255,255,255,.75); border-radius: 20rpx; background: rgba(255,255,255,.58); box-shadow: 0 10rpx 25rpx rgba(35,53,82,.12); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); }
 .profile-hero__glass text { color: #294363; font-size: 18rpx; font-weight: 700; letter-spacing: 2rpx; }
 .profile-hero__identity { display: flex; align-items: center; gap: 20rpx; min-width: 0; margin: 22rpx 24rpx 0; }
-.profile-hero__avatar { display: flex; flex-shrink: 0; align-items: center; justify-content: center; width: 92rpx; height: 92rpx; border: 5rpx solid #fff; border-radius: 30rpx; box-shadow: 0 9rpx 24rpx rgba(35,57,84,.13); color: #fff; font-size: 43rpx; font-weight: 700; }
+.profile-hero__avatar { display: flex; flex-shrink: 0; align-items: center; justify-content: center; overflow: hidden; width: 92rpx; height: 92rpx; border: 5rpx solid #fff; border-radius: 30rpx; box-shadow: 0 9rpx 24rpx rgba(35,57,84,.13); color: #fff; font-size: 43rpx; font-weight: 700; }
+.profile-hero__avatar-image { width: 100%; height: 100%; }
 .profile-hero__names { display: flex; flex: 1; min-width: 0; flex-direction: column; }
 .profile-hero__name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: $sz-text; font-size: 32rpx; font-weight: 700; line-height: 1.2; }
 .profile-hero__handle { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-top: 4rpx; color: $sz-text-tertiary; font-size: 22rpx; }

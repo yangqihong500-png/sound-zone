@@ -30,7 +30,8 @@ public class GlobalExceptionHandler {
                                     QUEUE_ITEM_NOT_FOUND,
                                     MOMENT_NOT_FOUND,
                                     ZONE_COVER_NOT_FOUND,
-                                    PROFILE_COVER_NOT_FOUND ->
+                                    PROFILE_COVER_NOT_FOUND,
+                                    PROFILE_AVATAR_NOT_FOUND ->
                             404;
                     default -> 400;
                 };

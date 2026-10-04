@@ -5,10 +5,10 @@
     <view v-else-if="error" class="archive-state">{{ error }}</view>
     <view v-else-if="user" class="paper">
       <view class="paper__masthead"><view><text class="paper__eyebrow">MUSIC SHARING / PUBLIC PROFILE</text><text class="paper__brand">SOUNDZONE<text class="paper__brand-dot">.</text></text><text class="paper__sub">LISTENER RADIO REPORT</text></view><view class="paper__number"><text>NO.</text><text class="paper__number-value">{{ serial }}</text><text>PUBLIC COPY</text></view></view>
-      <view class="paper__identity"><view class="paper__portrait"><image v-if="coverUrl" class="paper__portrait-image" :src="coverUrl" mode="aspectFill" /><text v-else>{{ initial }}</text><text class="paper__portrait-label">PHOTO / COVER</text></view><view class="paper__fields"><view class="paper__field"><text>NAME</text><text>{{ user.name }}</text></view><view class="paper__field"><text>SOUND ID</text><text>SZ-{{ serial }}</text></view><view class="paper__field"><text>UPLOADS</text><text>{{ user.stats?.uploads || 0 }} TRACKS</text></view><view class="paper__field"><text>SHARES</text><text>{{ user.stats?.moments || 0 }} MOMENTS</text></view></view></view>
+      <view class="paper__identity"><view class="paper__portrait"><image v-if="avatarUrl" class="paper__portrait-image" :src="avatarUrl" mode="aspectFill" /><text v-else>{{ initial }}</text><text class="paper__portrait-label">PHOTO / AVATAR</text></view><view class="paper__fields"><view class="paper__field"><text>NAME</text><text>{{ user.name }}</text></view><view class="paper__field"><text>SOUND ID</text><text>SZ-{{ serial }}</text></view><view class="paper__field"><text>UPLOADS</text><text>{{ user.stats?.uploads || 0 }} TRACKS</text></view><view class="paper__field"><text>SHARES</text><text>{{ user.stats?.moments || 0 }} MOMENTS</text></view></view></view>
       <view class="paper__section"><view class="paper__section-heading"><text>SELF INTRODUCTION / 自我介绍</text><text>+</text></view><view class="paper__line-copy"><text>someone is always listening with you.</text><text>在 SoundZone，声音会留下相遇的痕迹。</text></view></view>
       <view class="paper__section"><view class="paper__section-heading"><text>MUSIC FOOTPRINT / 声音记录</text><text>PUBLIC</text></view><view class="paper__stat-row"><text>01</text><text>上传歌曲</text><text>{{ user.stats?.uploads || 0 }}</text></view><view class="paper__stat-row"><text>02</text><text>收到喜欢</text><text>{{ user.stats?.likes || 0 }}</text></view><view class="paper__stat-row"><text>03</text><text>分享瞬间</text><text>{{ user.stats?.moments || 0 }}</text></view></view>
-      <view class="paper__section"><view class="paper__section-heading"><text>VISIBILITY / 可见范围</text><text>OPEN</text></view><view class="paper__note">这份档案只展示公开的昵称、背景照片和统计。私密域、收藏及关注名单不会在这里出现。</view></view>
+      <view class="paper__section"><view class="paper__section-heading"><text>VISIBILITY / 可见范围</text><text>OPEN</text></view><view class="paper__note">这份档案只展示公开的用户 ID、头像和统计。私密域、收藏及关注名单不会在这里出现。</view></view>
       <view class="paper__signature"><view><text class="paper__signature-label">SIGNED BY LISTENER</text><text class="paper__signature-name">{{ user.name }}</text></view><view class="paper__seal"><text>SOUNDZONE</text><text>PUBLIC</text><text>PROFILE</text></view></view>
       <view class="paper__footer"><text>SoundZone Radio · SZ-{{ serial }}</text><text>PROFILE / PUBLIC</text></view>
     </view>
@@ -27,7 +27,7 @@ const loading = ref(true)
 const error = ref('')
 const serial = computed(() => String(user.value?.id || 0).padStart(3, '0'))
 const initial = computed(() => (user.value?.name || '?').trim().charAt(0).toUpperCase() || '?')
-const coverUrl = computed(() => resolveMediaUrl(user.value?.coverUrl))
+const avatarUrl = computed(() => resolveMediaUrl(user.value?.avatarUrl))
 onLoad(async (options) => {
   const userId = Number(options.userId)
   if (!options.userId || !Number.isInteger(userId) || userId <= 0) { loading.value = false; error.value = '无效的用户 ID'; return }

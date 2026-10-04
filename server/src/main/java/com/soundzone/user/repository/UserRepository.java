@@ -10,6 +10,8 @@ public interface UserRepository extends JpaRepository<User, Long> {
 
     Optional<User> findByName(String name);
 
+    Optional<User> findByNameIgnoreCase(String name);
+
     Optional<User> findByHostSubject(String subject);
 
     @org.springframework.data.jpa.repository.Lock(

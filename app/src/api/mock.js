@@ -64,6 +64,23 @@ export async function uploadProfileCover(filePath) {
     })
   })
 }
+export async function uploadProfileAvatar(filePath) {
+  await ensureSession()
+  return new Promise((resolve, reject) => {
+    uni.uploadFile({
+      url: `${API_BASE}/users/me/avatar`, filePath, name: 'file',
+      header: { Authorization: `Bearer ${token()}` },
+      success: (res) => {
+        try {
+          const body = JSON.parse(res.data)
+          body.code === 0 ? resolve(body.data) : reject(apiError(body))
+        } catch { reject(new Error('头像上传响应异常')) }
+      },
+      fail: () => reject(new Error('头像上传失败，请重试')),
+    })
+  })
+}
+export const updateProfileName = (name) => put('/users/me/profile', { name })
 export const getListeningSummary = () => get('/users/me/listening-summary')
 export const getUserProfile = (userId) => get(`/users/${userId}/profile`)
 export const followUser = (id) => post(`/users/${id}/follow`)

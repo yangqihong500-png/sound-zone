@@ -8,7 +8,7 @@ import lombok.Data;
 
 import java.time.LocalDateTime;
 
-/** 独立 App 账号凭据。登录名只用于认证，展示昵称仍由 User 维护。 */
+/** 独立 App 账号凭据。登录名用于认证，并与 User 的公开用户 ID 保持同步。 */
 @Data
 @Entity
 @Table(name = "sz_user_credential")

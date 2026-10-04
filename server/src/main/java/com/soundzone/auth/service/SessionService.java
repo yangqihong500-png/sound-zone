@@ -88,7 +88,7 @@ public class SessionService {
 
         User user = findUser(existingToken).filter(this::canUpgradeGuest).orElseGet(User::new);
         String displayName = username.strip();
-        Optional<User> duplicate = users.findByName(displayName);
+        Optional<User> duplicate = users.findByNameIgnoreCase(displayName);
         if (duplicate.isPresent()
                 && (user.getId() == null || !duplicate.get().getId().equals(user.getId())))
             throw new BizException(ResultCode.PARAM_INVALID, "该用户名已被使用");

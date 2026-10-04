@@ -2,6 +2,7 @@ package com.soundzone.user.service;
 
 import com.soundzone.activity.repository.ActivityEventRepository;
 import com.soundzone.activity.service.ActivityService;
+import com.soundzone.auth.repository.UserCredentialRepository;
 import com.soundzone.common.*;
 import com.soundzone.feedback.repository.TrackCollectionRepository;
 import com.soundzone.moment.service.ImageStorage;
@@ -34,6 +35,7 @@ import java.util.stream.Collectors;
 @Transactional
 public class UserService {
     private final UserRepository users;
+    private final UserCredentialRepository credentials;
     private final QueueItemRepository queue;
     private final MomentRepository moments;
     private final FollowRepository follows;
@@ -50,6 +52,7 @@ public class UserService {
                 u.getId(),
                 u.getName(),
                 u.getAvatarColor(),
+                u.getAvatarUrl(),
                 u.getCoverUrl(),
                 new UserProfileDTO.Stats(
                         queue.countByRequesterId(id),
@@ -57,6 +60,44 @@ public class UserService {
                         moments.countByUserIdAndStatus(id, MomentStatus.NORMAL),
                         follows.countByFollowerId(id)),
                 follows.findByFollowerIdAndFolloweeId(viewer, id).isPresent());
+    }
+
+    /** 修改公开用户 ID；独立账号同步更新登录名，避免展示名与登录名分叉。 */
+    public Map<String, String> updateName(Long id, String requestedName) {
+        String name = requestedName.strip();
+        User user = users.lockById(id).orElseThrow(() -> new BizException(ResultCode.USER_NOT_FOUND));
+        users.findByNameIgnoreCase(name)
+                .filter(existing -> !existing.getId().equals(id))
+                .ifPresent(existing -> { throw new BizException(ResultCode.PARAM_INVALID, "该用户 ID 已被使用"); });
+
+        credentials.findByUserId(id)
+                .ifPresent(
+                        credential -> {
+                            String loginName = name.toLowerCase(Locale.ROOT);
+                            credentials.findByLoginName(loginName)
+                                    .filter(existing -> !existing.getUser().getId().equals(id))
+                                    .ifPresent(existing -> { throw new BizException(ResultCode.PARAM_INVALID, "该用户 ID 已被使用"); });
+                            credential.setLoginName(loginName);
+                            credentials.save(credential);
+                        });
+        user.setName(name);
+        users.saveAndFlush(user);
+        return Map.of("name", name);
+    }
+
+    public Map<String, String> updateAvatar(Long id, MultipartFile file) {
+        User user = users.lockById(id).orElseThrow(() -> new BizException(ResultCode.USER_NOT_FOUND));
+        String oldUrl = user.getAvatarUrl();
+        String newUrl = "/profile-avatars/" + imageStorage.storeProfileAvatar(file);
+        user.setAvatarUrl(newUrl);
+        users.saveAndFlush(user);
+        if (oldUrl != null && oldUrl.startsWith("/profile-avatars/")) {
+            String oldKey = oldUrl.substring("/profile-avatars/".length());
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override public void afterCommit() { imageStorage.deleteProfileAvatar(oldKey); }
+            });
+        }
+        return Map.of("avatarUrl", newUrl);
     }
 
     public Map<String, String> updateCover(Long id, MultipartFile file) {
@@ -160,7 +201,9 @@ public class UserService {
                                         "name",
                                         f.getFollowee().getName(),
                                         "avatarColor",
-                                        f.getFollowee().getAvatarColor()))
+                                        f.getFollowee().getAvatarColor(),
+                                        "avatarUrl",
+                                        Objects.toString(f.getFollowee().getAvatarUrl(), "")))
                 .toList();
     }
 

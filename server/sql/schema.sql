@@ -23,6 +23,7 @@ CREATE TABLE IF NOT EXISTS sz_user (
   id           BIGINT       NOT NULL AUTO_INCREMENT,
   name         VARCHAR(32)  NOT NULL,
   avatar_color VARCHAR(16)  NOT NULL DEFAULT '#8C9BAB',
+  avatar_url   VARCHAR(512) DEFAULT NULL,
   cover_url    VARCHAR(512) DEFAULT NULL,
   created_at   DATETIME(6)  NOT NULL,
   PRIMARY KEY (id),
