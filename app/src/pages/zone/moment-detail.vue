@@ -85,7 +85,7 @@
 <script setup>
 import { ref } from 'vue'
 import { onLoad, onUnload } from '@dcloudio/uni-app'
-import { getMoment, loadImage, reactMoment, withdrawMoment } from '@/api/mock.js'
+import { getMoment, loadImage, releaseImage, reactMoment, withdrawMoment } from '@/api/mock.js'
 import { session } from '@/api/session.js'
 
 const moment = ref(null)
@@ -106,7 +106,7 @@ onLoad((option) => {
   }
   load()
 })
-onUnload(() => { generation++ })
+onUnload(() => { generation++; releaseImage(imagePath.value) })
 
 async function load() {
   const current = ++generation
@@ -116,11 +116,13 @@ async function load() {
     const data = await getMoment(momentId)
     if (current !== generation) return
     moment.value = data
+    releaseImage(imagePath.value)
     imagePath.value = ''
     if (data.imageUrl) {
       try {
         const path = await loadImage(data.imageUrl)
         if (current === generation) imagePath.value = path
+        else releaseImage(path)
       } catch { /* 保留动态占位色，歌曲信息仍可查看 */ }
     }
   } catch (e) {

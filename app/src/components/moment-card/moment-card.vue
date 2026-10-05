@@ -23,7 +23,7 @@
 
 <script setup>
 import { ref, watch, onUnmounted } from 'vue'
-import { loadImage } from '@/api/mock.js'
+import { loadImage, releaseImage } from '@/api/mock.js'
 /**
  * MomentCard 图片分享卡片（v2：2026-09-24 决议 D6）
  * @prop {Object} moment 后端 MomentDTO：{ id, userId, text, imageUrl, color, track, by, time }
@@ -43,12 +43,17 @@ const imagePath = ref('')
 let generation = 0
 watch(() => props.moment.imageUrl, async (url) => {
   const current = ++generation
+  releaseImage(imagePath.value)
   imagePath.value = ''
   if (!url) return
-  try { const path = await loadImage(url); if (current === generation) imagePath.value = path }
+  try {
+    const path = await loadImage(url)
+    if (current === generation) imagePath.value = path
+    else releaseImage(path)
+  }
   catch { /* 图片撤回、不可访问或断网时保留占位 */ }
 }, { immediate: true })
-onUnmounted(() => { generation++ })
+onUnmounted(() => { generation++; releaseImage(imagePath.value) })
 </script>
 
 <style lang="scss" scoped>

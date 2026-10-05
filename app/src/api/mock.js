@@ -115,6 +115,14 @@ export async function uploadImage(zoneId, { filePath, queueItemId, trainingConse
 /** 私密图片带身份下载，不开放静态 URL；服务端撤回后禁止再次读取。 */
 export async function loadImage(path) {
   await ensureSession()
+  // #ifdef H5
+  const response = await fetch(API_BASE + path, {
+    headers: { Authorization: `Bearer ${token()}` },
+  })
+  if (!response.ok) throw new Error('图片暂不可查看')
+  return URL.createObjectURL(await response.blob())
+  // #endif
+  // #ifndef H5
   return new Promise((resolve, reject) => {
     uni.downloadFile({
       url: API_BASE + path, header: { Authorization: `Bearer ${token()}` },
@@ -122,4 +130,11 @@ export async function loadImage(path) {
       fail: () => reject(new Error('图片加载失败')),
     })
   })
+  // #endif
+}
+
+export function releaseImage(path) {
+  // #ifdef H5
+  if (path?.startsWith('blob:')) URL.revokeObjectURL(path)
+  // #endif
 }
