@@ -129,12 +129,15 @@ public class DataInitializer implements CommandLineRunner {
             ensurePlaylist(zone, host, playlist);
             ensureMoment(zone, host, playlist.get(0), spec.momentText(), spec.imageName(), i);
             if ("night-host".equals(spec.hostKey())) {
-                Track guestTrack = catalog.stream()
-                        .filter(track -> playlist.stream().noneMatch(p -> p.getId().equals(track.getId())))
-                        .filter(track -> track.getTags().stream().anyMatch(zone.getFilterTags()::contains))
-                        .findFirst()
-                        .orElse(playlist.get(1));
-                ensureMoment(zone, cast.get("listener-1"), guestTrack,
+                User guest = cast.get("listener-1");
+                Track guestTrack = playlist.get(1);
+                for (QueueItem old : queue.findByZoneIdAndRequesterIdOrderByCreatedAtAscIdAsc(
+                        zone.getId(), guest.getId())) {
+                    if (!old.getTrack().getId().equals(guestTrack.getId())
+                            && old.getStatus() != QueueStatus.PLAYING)
+                        old.setStatus(QueueStatus.REMOVED);
+                }
+                ensureMoment(zone, guest, guestTrack,
                         "我也到家了，今晚一起慢慢听。", "night-listener", 1);
             }
         }
