@@ -3,12 +3,14 @@ package com.soundzone.moment.service;
 import com.soundzone.common.*;
 
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.io.ClassPathResource;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.*;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.*;
 import java.nio.file.*;
+import java.nio.charset.StandardCharsets;
 import java.util.UUID;
 
 import javax.imageio.ImageIO;
@@ -21,6 +23,27 @@ public class ImageStorage {
 
     public String store(MultipartFile file) {
         return store(file, UUID.randomUUID() + ".jpg");
+    }
+
+    /** Packaged, original demo photos get stable keys so startup seeding is repeatable. */
+    public String ensureDemoMomentImage(String name) {
+        if (name == null || !name.matches("[a-z-]+"))
+            throw new IllegalArgumentException("Invalid demo image name");
+        String key = UUID.nameUUIDFromBytes(
+                        ("soundzone-demo-moment:" + name).getBytes(StandardCharsets.UTF_8))
+                + ".jpg";
+        Path path = resolveStoredKey(key);
+        try {
+            Files.createDirectories(path.getParent());
+            if (!Files.exists(path)) {
+                try (var input = new ClassPathResource("demo-moments/" + name + ".jpg").getInputStream()) {
+                    Files.copy(input, path);
+                }
+            }
+        } catch (IOException e) {
+            throw new IllegalStateException("Could not install demo moment image: " + name, e);
+        }
+        return key;
     }
 
     /** 域封面为公开展示素材，使用独立前缀，不能借公开接口读取私密动态图片。 */

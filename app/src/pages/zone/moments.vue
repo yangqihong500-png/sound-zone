@@ -2,7 +2,7 @@
   <view class="page">
     <view class="nav sz-glass" :style="{ paddingTop: statusBarHeight + 'px' }">
       <view class="nav__back" @click="goBack">‹</view>
-      <view class="nav__copy"><text class="nav__title">Moments</text><text class="nav__subtitle">Photos from the last 30 minutes</text></view>
+      <view class="nav__copy"><text class="nav__title">域内瞬间</text><text class="nav__subtitle">成员为歌曲留下的当下</text></view>
       <view class="nav__back" />
     </view>
 
@@ -34,7 +34,7 @@
           </view>
         </view>
       </view>
-      <view v-if="!moments.length" class="empty">No moments shared in the last 30 minutes.</view>
+      <view v-if="!moments.length" class="empty">暂时还没有可展示的瞬间。</view>
       <view class="bottom-spacer" />
     </scroll-view>
     <suspended-zone-player />

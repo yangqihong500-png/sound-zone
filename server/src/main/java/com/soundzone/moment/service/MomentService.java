@@ -70,14 +70,19 @@ public class MomentService {
     }
 
     public List<MomentDTO> feed(Long zoneId, Long userId) {
-        access.member(zoneId, userId);
-        var source =
-                moments.findByZoneIdAndStatusAndCreatedAtAfterOrderByCreatedAtDescIdDesc(
-                        zoneId,
-                        MomentStatus.NORMAL,
-                        LocalDateTime.now(clock).minusMinutes(30));
+        var zone = access.member(zoneId, userId);
+        LocalDateTime after = LocalDateTime.now(clock).minusMinutes(30);
+        var source = zone.isDemoResident()
+                ? moments.findByZoneIdAndStatusOrderByCreatedAtDescIdDesc(zoneId, MomentStatus.NORMAL)
+                : moments.findByZoneIdAndStatusAndCreatedAtAfterOrderByCreatedAtDescIdDesc(
+                        zoneId, MomentStatus.NORMAL, after);
         return source
                 .stream()
+                .filter(m -> m.getCreatedAt().isAfter(after)
+                        || (zone.isDemoResident()
+                                && m.getImageUrl() != null
+                                && m.getUser().getHostSubject() != null
+                                && m.getUser().getHostSubject().startsWith("demo:")))
                 .filter(m -> m.getModerationStatus() != ModerationStatus.REJECTED)
                 .map(
                         m ->

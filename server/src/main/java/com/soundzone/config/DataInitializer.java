@@ -2,6 +2,7 @@ package com.soundzone.config;
 
 import com.soundzone.moment.entity.*;
 import com.soundzone.moment.repository.MomentRepository;
+import com.soundzone.moment.service.ImageStorage;
 import com.soundzone.queue.entity.*;
 import com.soundzone.queue.repository.QueueItemRepository;
 import com.soundzone.track.entity.Track;
@@ -52,28 +53,32 @@ public class DataInitializer implements CommandLineRunner {
                             "自习",
                             "#A8B8C8",
                             Set.of("专注"),
-                            "写完这一页再休息 ☕"),
+                            "写完这一页再休息 ☕",
+                            "study"),
                     new DemoZone(
                             "run-host",
                             "夜跑俱乐部",
                             "健身",
                             "#A9C4B5",
                             Set.of("亢奋"),
-                            "今晚的五公里完成！"),
+                            "今晚的五公里完成！",
+                            "run"),
                     new DemoZone(
                             "travel-host",
                             "城市漫游电台",
                             "旅行",
                             "#D9CFB8",
                             Set.of("古典"),
-                            "把路上的风景分享给你"),
+                            "把路上的风景分享给你",
+                            "travel"),
                     new DemoZone(
                             "night-host",
                             "下班后的客厅",
                             "深夜",
                             "#C3B8D9",
                             Set.of("情歌"),
-                            "今天辛苦了，坐下来听一会儿"));
+                            "今天辛苦了，坐下来听一会儿",
+                            "night-host"));
 
     private final UserRepository users;
     private final TrackRepository tracks;
@@ -81,6 +86,7 @@ public class DataInitializer implements CommandLineRunner {
     private final ZoneMemberRepository members;
     private final QueueItemRepository queue;
     private final MomentRepository moments;
+    private final ImageStorage images;
     private final Clock clock;
     private final MusicProperties musicProperties;
     private final TrackDurationPolicy durations;
@@ -121,7 +127,16 @@ public class DataInitializer implements CommandLineRunner {
             Zone zone = upsertZone(spec, host, playlist);
             ensureMembers(zone, host, listeners, i);
             ensurePlaylist(zone, host, playlist);
-            ensureMoment(zone, host, playlist.get(0), spec.momentText(), i);
+            ensureMoment(zone, host, playlist.get(0), spec.momentText(), spec.imageName(), i);
+            if ("night-host".equals(spec.hostKey())) {
+                Track guestTrack = catalog.stream()
+                        .filter(track -> playlist.stream().noneMatch(p -> p.getId().equals(track.getId())))
+                        .filter(track -> track.getTags().stream().anyMatch(zone.getFilterTags()::contains))
+                        .findFirst()
+                        .orElse(playlist.get(1));
+                ensureMoment(zone, cast.get("listener-1"), guestTrack,
+                        "我也到家了，今晚一起慢慢听。", "night-listener", 1);
+            }
         }
     }
 
@@ -223,13 +238,27 @@ public class DataInitializer implements CommandLineRunner {
     }
 
     private void ensureMoment(
-            Zone zone, User host, Track track, String text, int minuteOffset) {
+            Zone zone, User author, Track track, String text, String imageName, int minuteOffset) {
+        QueueItem item = queue.findByZoneIdAndRequesterIdOrderByCreatedAtAscIdAsc(
+                        zone.getId(), author.getId()).stream()
+                .filter(q -> q.getTrack().getId().equals(track.getId()))
+                .findFirst()
+                .orElseGet(() -> {
+                    QueueItem added = new QueueItem();
+                    added.setZone(zone);
+                    added.setTrack(track);
+                    added.setRequester(author);
+                    added.setStatus(QueueStatus.QUEUED);
+                    return queue.save(added);
+                });
         Moment moment =
                 moments.findFirstByZoneIdAndText(zone.getId(), text).orElseGet(Moment::new);
         moment.setZone(zone);
-        moment.setUser(host);
+        moment.setUser(author);
+        moment.setQueueItem(item);
         moment.setTrack(track);
         moment.setText(text);
+        moment.setImageUrl(images.ensureDemoMomentImage(imageName));
         moment.setColor(zone.getCoverColor());
         if (moment.getId() == null)
             moment.setCreatedAt(LocalDateTime.now(clock).minusMinutes(3L + minuteOffset));
@@ -284,5 +313,6 @@ public class DataInitializer implements CommandLineRunner {
             String scene,
             String color,
             Set<String> preferredTags,
-            String momentText) {}
+            String momentText,
+            String imageName) {}
 }

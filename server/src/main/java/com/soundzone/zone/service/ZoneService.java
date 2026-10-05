@@ -391,6 +391,12 @@ public class ZoneService {
                 zone.getName(),
                 zone.getScene(),
                 zone.getListenerCount(),
+                members.findByZoneId(zone.getId()).stream()
+                        .sorted(Comparator.comparing(ZoneMember::getJoinedAt)
+                                .thenComparing(ZoneMember::getId))
+                        .limit(4)
+                        .map(m -> ZoneMemberPreviewDTO.from(m.getUser()))
+                        .toList(),
                 zone.getHost().getName(),
                 zone.getHost().getId(),
                 zone.getCoverColor(),

@@ -11,6 +11,7 @@ public record ZoneDetailDTO(
         String name,
         String scene,
         Integer listeners,
+        List<ZoneMemberPreviewDTO> memberPreviews,
         String host,
         Long hostId,
         String coverColor,
