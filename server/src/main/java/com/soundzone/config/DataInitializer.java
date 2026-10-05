@@ -126,18 +126,13 @@ public class DataInitializer implements CommandLineRunner {
             List<Track> playlist = selectPlaylist(catalog, spec.preferredTags(), i * 2);
             Zone zone = upsertZone(spec, host, playlist);
             ensureMembers(zone, host, listeners, i);
-            ensurePlaylist(zone, host, playlist);
+            List<User> uploaders = "night-host".equals(spec.hostKey())
+                    ? List.of(host, cast.get("listener-1"), cast.get("listener-2"))
+                    : List.of(host);
+            ensurePlaylist(zone, uploaders, playlist);
             ensureMoment(zone, host, playlist.get(0), spec.momentText(), spec.imageName(), i);
             if ("night-host".equals(spec.hostKey())) {
-                User guest = cast.get("listener-1");
-                Track guestTrack = playlist.get(1);
-                for (QueueItem old : queue.findByZoneIdAndRequesterIdOrderByCreatedAtAscIdAsc(
-                        zone.getId(), guest.getId())) {
-                    if (!old.getTrack().getId().equals(guestTrack.getId())
-                            && old.getStatus() != QueueStatus.PLAYING)
-                        old.setStatus(QueueStatus.REMOVED);
-                }
-                ensureMoment(zone, guest, guestTrack,
+                ensureMoment(zone, uploaders.get(1), playlist.get(1),
                         "我也到家了，今晚一起慢慢听。", "night-listener", 1);
             }
         }
@@ -198,23 +193,45 @@ public class DataInitializer implements CommandLineRunner {
         zone.setListenerCount((int) members.countByZoneId(zone.getId()));
     }
 
-    private void ensurePlaylist(Zone zone, User host, List<Track> playlist) {
+    private void ensurePlaylist(Zone zone, List<User> uploaders, List<Track> playlist) {
         Set<Long> selectedIds = playlist.stream().map(Track::getId).collect(java.util.stream.Collectors.toSet());
-        for (QueueItem old :
-                queue.findByZoneIdAndRequesterIdOrderByCreatedAtAscIdAsc(
-                        zone.getId(), host.getId())) {
-            if (!selectedIds.contains(old.getTrack().getId())) old.setStatus(QueueStatus.REMOVED);
-            else if (old.getStatus() == QueueStatus.REMOVED) old.setStatus(QueueStatus.QUEUED);
+        List<QueueItem> seeded = new ArrayList<>();
+        for (User uploader : uploaders) {
+            seeded.addAll(queue.findByZoneIdAndRequesterIdOrderByCreatedAtAscIdAsc(
+                    zone.getId(), uploader.getId()));
         }
-        for (Track track : playlist) {
-            if (queue.existsByZoneIdAndTrackIdAndRequesterId(
-                    zone.getId(), track.getId(), host.getId())) continue;
-            QueueItem item = new QueueItem();
-            item.setZone(zone);
-            item.setTrack(track);
-            item.setRequester(host);
-            item.setStatus(QueueStatus.QUEUED);
-            queue.save(item);
+        for (QueueItem old : seeded) {
+            if (!selectedIds.contains(old.getTrack().getId())
+                    && old.getStatus() != QueueStatus.PLAYING)
+                old.setStatus(QueueStatus.REMOVED);
+        }
+        for (int i = 0; i < playlist.size(); i++) {
+            Track track = playlist.get(i);
+            User uploader = uploaders.get(i % uploaders.size());
+            List<QueueItem> matching = seeded.stream()
+                    .filter(q -> q.getTrack().getId().equals(track.getId()))
+                    .toList();
+            QueueItem selected = matching.stream()
+                    .min(Comparator.comparing((QueueItem q) -> q.getStatus() != QueueStatus.PLAYING)
+                            .thenComparing(QueueItem::getCreatedAt)
+                            .thenComparing(QueueItem::getId))
+                    .orElse(null);
+            if (selected == null) {
+                selected = new QueueItem();
+                selected.setZone(zone);
+                selected.setTrack(track);
+                selected.setRequester(uploader);
+                selected.setStatus(QueueStatus.QUEUED);
+                queue.save(selected);
+            } else {
+                selected.setRequester(uploader);
+                if (selected.getStatus() == QueueStatus.REMOVED)
+                    selected.setStatus(QueueStatus.QUEUED);
+                for (QueueItem extra : matching) {
+                    if (extra != selected && extra.getStatus() != QueueStatus.PLAYING)
+                        extra.setStatus(QueueStatus.REMOVED);
+                }
+            }
         }
         if (queue.findFirstByZoneIdAndStatus(zone.getId(), QueueStatus.PLAYING).isEmpty()) {
             List<QueueItem> waiting =
