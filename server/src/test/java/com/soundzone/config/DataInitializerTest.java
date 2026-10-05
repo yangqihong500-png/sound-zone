@@ -42,9 +42,28 @@ class DataInitializerTest {
                 selected.stream().map(Track::getTitle).toList());
     }
 
+    @Test
+    void nightPlaylistShowsDifferentCoversFromCompatibleSongs() {
+        List<Track> catalog = new ArrayList<>();
+        for (int i = 0; i < 4; i++) catalog.add(track("Love " + i, Set.of("情歌"), "album-a"));
+        catalog.add(track("Soft", Set.of("舒缓"), "album-b"));
+        catalog.add(track("City", Set.of("流行"), "album-c"));
+
+        List<Track> selected = DataInitializer.selectNightPlaylist(catalog, 0);
+
+        assertEquals(List.of("Love 0", "Soft", "City"),
+                selected.stream().map(Track::getTitle).toList());
+        assertEquals(3, selected.stream().map(Track::getCoverUrl).distinct().count());
+    }
+
     private Track track(String title, Set<String> tags) {
+        return track(title, tags, null);
+    }
+
+    private Track track(String title, Set<String> tags, String coverUrl) {
         Track track = new Track();
         track.setTitle(title);
+        track.setCoverUrl(coverUrl);
         track.getTags().addAll(tags);
         return track;
     }

@@ -42,21 +42,6 @@
       <view v-if="zone.filterTags?.length" class="filter-note">
         {{ zone.filterMode === 'BAN' ? 'Blocked tags' : 'Allowed tags' }}: {{ [...zone.filterTags].join(' · ') }}
       </view>
-      <view v-if="zone.memberPreviews?.length" class="member-strip">
-        <view class="member-strip__avatars">
-          <view
-            v-for="member in zone.memberPreviews"
-            :key="member.userId"
-            class="member-strip__avatar"
-            :style="{ backgroundColor: member.avatarColor }"
-            @click="goUserHome(member.userId)"
-          >{{ member.name.slice(0, 1) }}</view>
-        </view>
-        <view class="member-strip__copy">
-          <text class="member-strip__title">一起在这个域</text>
-          <text class="member-strip__names">{{ zone.memberPreviews.map(m => m.name).join(' · ') }}</text>
-        </view>
-      </view>
       <view v-if="zone.pomodoro?.enabled" class="focus-strip" :class="'focus-strip--' + zone.pomodoro.phase.toLowerCase()" @click="pomodoroExpanded = !pomodoroExpanded">
         <view class="focus-strip__icon"><image src="/static/icons/pomodoro.svg" mode="aspectFit" /></view>
         <view class="focus-strip__copy">
@@ -751,32 +736,6 @@ function paletteFromPixels(pixels) {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-.member-strip {
-  display: flex;
-  align-items: center;
-  gap: 18rpx;
-  margin-top: 18rpx;
-  padding: 16rpx 20rpx;
-  border: 1rpx solid rgba(255,255,255,.82);
-  border-radius: 25rpx;
-  background: rgba(255,255,255,.72);
-  box-shadow: 0 12rpx 30rpx rgba(48,74,108,.08);
-
-  &__avatars { display: flex; flex-shrink: 0; padding-left: 7rpx; }
-  &__avatar {
-    display: flex; align-items: center; justify-content: center;
-    width: 47rpx; height: 47rpx; margin-left: -7rpx;
-    border: 3rpx solid #fff; border-radius: 50%;
-    color: #233954; font-size: 20rpx; font-weight: 700;
-  }
-  &__copy { display: flex; flex-direction: column; min-width: 0; gap: 3rpx; }
-  &__title { color: #0b2348; font-size: 20rpx; font-weight: 700; }
-  &__names {
-    color: rgba(11,35,72,.62); font-size: 18rpx;
-    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-  }
 }
 
 .focus-strip {

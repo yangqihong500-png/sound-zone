@@ -123,7 +123,9 @@ public class DataInitializer implements CommandLineRunner {
         for (int i = 0; i < ZONES.size(); i++) {
             DemoZone spec = ZONES.get(i);
             User host = cast.get(spec.hostKey());
-            List<Track> playlist = selectPlaylist(catalog, spec.preferredTags(), i * 2);
+            List<Track> playlist = "night-host".equals(spec.hostKey())
+                    ? selectNightPlaylist(catalog, i * 2)
+                    : selectPlaylist(catalog, spec.preferredTags(), i * 2);
             Zone zone = upsertZone(spec, host, playlist);
             ensureMembers(zone, host, listeners, i);
             List<User> uploaders = "night-host".equals(spec.hostKey())
@@ -298,6 +300,23 @@ public class DataInitializer implements CommandLineRunner {
         for (int i = 0; i < Math.min(4, source.size()); i++)
             selected.add(source.get((offset + i) % source.size()));
         return selected;
+    }
+
+    /** Choose several actual album artworks so the three resident uploaders are visible in one queue. */
+    static List<Track> selectNightPlaylist(List<Track> catalog, int offset) {
+        LinkedHashMap<String, Track> differentCovers = new LinkedHashMap<>();
+        for (Set<String> tags : List.of(Set.of("情歌"), Set.of("情歌", "舒缓", "流行", "忧郁"))) {
+            for (Track track : catalog) {
+                if (track.getTags().stream().noneMatch(tags::contains)) continue;
+                String cover = track.getCoverUrl();
+                if (cover == null || cover.isBlank()) continue;
+                differentCovers.putIfAbsent(cover.strip(), track);
+                if (differentCovers.size() == 6) break;
+            }
+            if (differentCovers.size() == 6) break;
+        }
+        if (differentCovers.size() >= 3) return new ArrayList<>(differentCovers.values());
+        return selectPlaylist(catalog, Set.of("情歌"), offset);
     }
 
     private List<Track> fallbackCatalog() {

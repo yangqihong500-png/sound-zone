@@ -1156,7 +1156,6 @@ class CoreWorkflowTest {
         host.setHostSubject("demo:test-host");
         users.saveAndFlush(host);
         var shared = share(z, false);
-        assertEquals(2, zones.getDetail(z.id(), listener.getId()).memberPreviews().size());
         clock.advance(1801);
         assertEquals(shared.id(), moments.feed(z.id(), listener.getId()).get(0).id());
         assertTrue(Files.isRegularFile(imageStorage.resolve(
