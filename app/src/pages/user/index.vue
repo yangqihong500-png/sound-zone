@@ -131,9 +131,9 @@ function changeName() {
   if (nameBusy.value) return
   uni.showModal({
     title: '修改用户 ID',
-    content: '公开资料和账号登录名会一起更新。',
+    content: user.value.name || '',
     editable: true,
-    placeholderText: user.value.name || '',
+    placeholderText: '请输入新的用户 ID',
     confirmText: '保存',
     success: async ({ confirm, content }) => {
       if (!confirm) return
