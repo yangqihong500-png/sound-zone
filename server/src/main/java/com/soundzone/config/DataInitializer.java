@@ -118,13 +118,22 @@ public class DataInitializer implements CommandLineRunner {
                 audiusCatalog.forEach(t -> combined.putIfAbsent(t.getId(), t));
             catalog = combined.size() >= 3 ? new ArrayList<>(combined.values()) : fallbackCatalog();
         }
+        List<Track> nightCatalog = catalog;
+        if (musicProperties.getAudius().isEnabled()) {
+            List<Track> available = new ArrayList<>(localCatalog);
+            tracks.findBySourceOrderByIdAsc("AUDIUS").stream()
+                    .filter(t -> t.getExternalId() != null && !t.getTags().isEmpty())
+                    .filter(durations::isAllowed)
+                    .forEach(available::add);
+            if (available.size() >= 3) nightCatalog = available;
+        }
 
         List<User> listeners = new ArrayList<>(cast.values());
         for (int i = 0; i < ZONES.size(); i++) {
             DemoZone spec = ZONES.get(i);
             User host = cast.get(spec.hostKey());
             List<Track> playlist = "night-host".equals(spec.hostKey())
-                    ? selectNightPlaylist(catalog, i * 2)
+                    ? selectNightPlaylist(nightCatalog, i * 2)
                     : selectPlaylist(catalog, spec.preferredTags(), i * 2);
             Zone zone = upsertZone(spec, host, playlist);
             ensureMembers(zone, host, listeners, i);
@@ -302,18 +311,26 @@ public class DataInitializer implements CommandLineRunner {
         return selected;
     }
 
-    /** Choose several actual album artworks so the three resident uploaders are visible in one queue. */
+    /** Keep the shared night queue visually varied while favoring calm songs. */
     static List<Track> selectNightPlaylist(List<Track> catalog, int offset) {
         LinkedHashMap<String, Track> differentCovers = new LinkedHashMap<>();
-        for (Set<String> tags : List.of(Set.of("情歌"), Set.of("情歌", "舒缓", "流行", "忧郁"))) {
+        for (Track track : catalog) {
+            if (!track.getTags().contains("情歌")) continue;
+            String cover = track.getCoverUrl();
+            if (cover == null || cover.isBlank()) continue;
+            differentCovers.putIfAbsent(cover.strip(), track);
+            break;
+        }
+        for (Set<String> tags : List.of(Set.of("舒缓", "爵士", "Lo-Fi"),
+                Set.of("情歌", "舒缓", "流行", "忧郁"))) {
             for (Track track : catalog) {
                 if (track.getTags().stream().noneMatch(tags::contains)) continue;
                 String cover = track.getCoverUrl();
                 if (cover == null || cover.isBlank()) continue;
                 differentCovers.putIfAbsent(cover.strip(), track);
-                if (differentCovers.size() == 6) break;
+                if (differentCovers.size() == 8) break;
             }
-            if (differentCovers.size() == 6) break;
+            if (differentCovers.size() == 8) break;
         }
         if (differentCovers.size() >= 3) return new ArrayList<>(differentCovers.values());
         return selectPlaylist(catalog, Set.of("情歌"), offset);
