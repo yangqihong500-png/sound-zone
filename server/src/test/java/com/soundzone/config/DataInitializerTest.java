@@ -26,6 +26,25 @@ class DataInitializerTest {
     }
 
     @Test
+    void studyAndTravelResidentZonesUseTheIntendedAlbums() {
+        List<Track> catalog = new ArrayList<>();
+        for (int i = 0; i < 4; i++)
+            catalog.add(track("BTTB " + i, Set.of("古典", "纯音乐", "舒缓"), "bttb"));
+        for (int i = 0; i < 4; i++)
+            catalog.add(track("AWB " + i, Set.of("Lo-Fi", "纯音乐", "专注"), "awb"));
+
+        List<Track> study =
+                DataInitializer.selectPlaylist(catalog, DataInitializer.STUDY_PLAYLIST_TAGS, 0);
+        List<Track> travel =
+                DataInitializer.selectPlaylist(catalog, DataInitializer.TRAVEL_PLAYLIST_TAGS, 0);
+
+        assertEquals(4, study.size());
+        assertTrue(study.stream().allMatch(track -> "bttb".equals(track.getCoverUrl())));
+        assertEquals(4, travel.size());
+        assertTrue(travel.stream().allMatch(track -> "awb".equals(track.getCoverUrl())));
+    }
+
+    @Test
     void incompleteTaggedGroupFallsBackToFourCatalogTracks() {
         List<Track> catalog =
                 List.of(

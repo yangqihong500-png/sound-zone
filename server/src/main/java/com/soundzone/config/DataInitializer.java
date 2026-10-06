@@ -34,6 +34,9 @@ import java.util.*;
         havingValue = "true",
         matchIfMissing = true)
 public class DataInitializer implements CommandLineRunner {
+    static final Set<String> STUDY_PLAYLIST_TAGS = Set.of("古典");
+    static final Set<String> TRAVEL_PLAYLIST_TAGS = Set.of("Lo-Fi");
+
     private static final List<DemoUser> USERS =
             List.of(
                     new DemoUser("study-host", "白桃乌龙", "#A8B8C8"),
@@ -52,7 +55,7 @@ public class DataInitializer implements CommandLineRunner {
                             "考研自习室",
                             "自习",
                             "#A8B8C8",
-                            Set.of("专注"),
+                            STUDY_PLAYLIST_TAGS,
                             "写完这一页再休息 ☕",
                             "study"),
                     new DemoZone(
@@ -68,7 +71,7 @@ public class DataInitializer implements CommandLineRunner {
                             "城市漫游电台",
                             "旅行",
                             "#D9CFB8",
-                            Set.of("古典"),
+                            TRAVEL_PLAYLIST_TAGS,
                             "把路上的风景分享给你",
                             "travel"),
                     new DemoZone(
@@ -212,8 +215,8 @@ public class DataInitializer implements CommandLineRunner {
                     zone.getId(), uploader.getId()));
         }
         for (QueueItem old : seeded) {
-            if (!selectedIds.contains(old.getTrack().getId())
-                    && old.getStatus() != QueueStatus.PLAYING)
+            // 常驻域曲库映射调整后，旧的正在播放项也要立即退出，避免封面已更新但歌曲仍属于旧域。
+            if (!selectedIds.contains(old.getTrack().getId()))
                 old.setStatus(QueueStatus.REMOVED);
         }
         for (int i = 0; i < playlist.size(); i++) {
