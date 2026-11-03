@@ -81,7 +81,7 @@
         href="https://beian.miit.gov.cn/"
         target="_blank"
         rel="noopener noreferrer"
-      >粤ICP备2026156975号-1</a>
+      >粤ICP备2026156975号</a>
     </view>
     <!-- #endif -->
     <suspended-zone-player />
