@@ -1,3 +1,9 @@
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
 services:
   mysql:
     image: mysql:8.0
@@ -11,6 +17,7 @@ services:
     command:
       - --character-set-server=utf8mb4
       - --collation-server=utf8mb4_unicode_ci
+      - --binlog-expire-logs-seconds=86400
     volumes:
       - mysql_data:/var/lib/mysql
     healthcheck:
@@ -20,6 +27,7 @@ services:
       retries: 30
     networks:
       - backend
+    logging: *default-logging
 
   migrate:
     image: mysql:8.0
@@ -40,6 +48,7 @@ services:
     command: ["sh", "/migrations/run.sh"]
     networks:
       - backend
+    logging: *default-logging
 
   server:
     build:
@@ -76,6 +85,7 @@ services:
       start_period: 30s
     networks:
       - backend
+    logging: *default-logging
 
   web:
     build:
@@ -85,13 +95,34 @@ services:
     depends_on:
       server:
         condition: service_healthy
-    ports:
-      - "${HTTP_PORT:-80}:80"
+    expose:
+      - "80"
     networks:
       - backend
+    logging: *default-logging
+
+  caddy:
+    image: caddy:2.10-alpine
+    restart: unless-stopped
+    depends_on:
+      web:
+        condition: service_healthy
+    ports:
+      - "${HTTP_PORT:-80}:80"
+      - "${HTTPS_PORT:-443}:443"
+      - "${HTTPS_PORT:-443}:443/udp"
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    networks:
+      - backend
+    logging: *default-logging
 
 volumes:
   mysql_data:
+  caddy_data:
+  caddy_config:
 
 networks:
   backend:

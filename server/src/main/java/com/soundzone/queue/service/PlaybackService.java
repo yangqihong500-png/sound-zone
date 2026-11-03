@@ -36,21 +36,34 @@ public class PlaybackService {
     @Value("${soundzone.presence-grace-seconds:90}")
     private long graceSeconds;
 
+    @Value("${soundzone.demo-presence-refresh-seconds:60}")
+    private long demoPresenceRefreshSeconds;
+
     @Transactional
     public void tick(Long zoneId) {
         Zone zone = access.lock(zoneId);
         if (zone.getStatus() != ZoneStatus.ACTIVE) return;
         LocalDateTime now = LocalDateTime.now(clock);
+        LocalDateTime demoPresenceCutoff = now.minusSeconds(demoPresenceRefreshSeconds);
         boolean changed = false;
+        boolean memberChanged = false;
         for (ZoneMember member : members.findByZoneId(zoneId)) {
-            if (zone.isDemoResident()) member.setLastSeenAt(now);
-            else if (member.getLastSeenAt() == null) member.setLastSeenAt(now); // 旧成员迁移宽限
-            else if (member.getLastSeenAt().isBefore(now.minusSeconds(graceSeconds))) {
+            if (zone.isDemoResident()) {
+                if (member.getLastSeenAt() == null
+                        || !member.getLastSeenAt().isAfter(demoPresenceCutoff)) {
+                    member.setLastSeenAt(now);
+                    memberChanged = true;
+                }
+            } else if (member.getLastSeenAt() == null) {
+                member.setLastSeenAt(now); // 旧成员迁移宽限
+                memberChanged = true;
+            } else if (member.getLastSeenAt().isBefore(now.minusSeconds(graceSeconds))) {
                 members.delete(member);
+                memberChanged = true;
                 changed = true;
             }
         }
-        members.flush();
+        if (memberChanged) members.flush();
         int count = (int) members.countByZoneId(zoneId);
         if (zone.getListenerCount() != count) {
             zone.setListenerCount(count);
@@ -62,7 +75,10 @@ public class PlaybackService {
             return;
         }
         if (zone.isDemoResident()) {
-            zone.setLastActivityAt(now);
+            if (zone.getLastActivityAt() == null
+                    || !zone.getLastActivityAt().isAfter(demoPresenceCutoff)) {
+                zone.setLastActivityAt(now);
+            }
             recycleDemoPlaylist(zone);
         }
         if (changed) changed(zone);

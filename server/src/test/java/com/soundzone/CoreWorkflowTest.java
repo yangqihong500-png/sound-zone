@@ -990,6 +990,35 @@ class CoreWorkflowTest {
         playback.tick(zone.getId());
         assertEquals(ZoneStatus.ACTIVE, zoneRepo.findById(zone.getId()).orElseThrow().getStatus());
         assertTrue(members.existsByZoneIdAndUserId(zone.getId(), host.getId()));
+        var refreshedMember =
+                members.findByZoneId(zone.getId()).stream()
+                        .filter(member -> member.getUser().getId().equals(host.getId()))
+                        .findFirst()
+                        .orElseThrow();
+        LocalDateTime refreshedPresence = refreshedMember.getLastSeenAt();
+        LocalDateTime refreshedActivity =
+                zoneRepo.findById(zone.getId()).orElseThrow().getLastActivityAt();
+        clock.advance(1);
+        playback.tick(zone.getId());
+        assertEquals(
+                refreshedPresence,
+                members.findByZoneId(zone.getId()).stream()
+                        .filter(member -> member.getUser().getId().equals(host.getId()))
+                        .findFirst()
+                        .orElseThrow()
+                        .getLastSeenAt());
+        assertEquals(
+                refreshedActivity,
+                zoneRepo.findById(zone.getId()).orElseThrow().getLastActivityAt());
+        clock.advance(60);
+        playback.tick(zone.getId());
+        assertTrue(
+                members.findByZoneId(zone.getId()).stream()
+                        .filter(member -> member.getUser().getId().equals(host.getId()))
+                        .findFirst()
+                        .orElseThrow()
+                        .getLastSeenAt()
+                        .isAfter(refreshedPresence));
         clock.advance(40);
         playback.tick(zone.getId());
         playback.tick(zone.getId());

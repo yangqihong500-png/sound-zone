@@ -1,0 +1,15 @@
+{
+	admin off
+}
+
+soundzones.cn {
+	reverse_proxy web:80
+}
+
+www.soundzones.cn {
+	redir https://soundzones.cn{uri} permanent
+}
+
+http://42.193.189.68, http://127.0.0.1, http://localhost {
+	reverse_proxy web:80
+}

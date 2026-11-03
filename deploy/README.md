@@ -6,7 +6,7 @@
 
 建议使用腾讯云中国大陆轻量应用服务器或 CVM。轻量服务器优先选择 Docker CE 应用模板，该模板预装 Docker，并默认配置腾讯云 Docker 镜像源，能降低国内服务器拉取基础镜像超时的概率。大陆域名正式开放访问前必须完成 ICP 备案；备案完成前可以先通过受限 IP 或非大陆环境做技术验证。
 
-服务器需要安装 Docker Engine、Docker Compose 插件、`curl` 和 `rsync`。创建专用部署用户，使其只能通过 SSH 密钥登录并可运行 Docker。开放 SSH、80；HTTPS 配置完成后开放 443。不要向公网开放 3306 或 8080。
+服务器需要安装 Docker Engine、Docker Compose 插件、`curl` 和 `rsync`。创建专用部署用户，使其只能通过 SSH 密钥登录并可运行 Docker。开放 SSH、80 和 443。不要向公网开放 3306 或 8080。
 
 创建部署目录，例如：
 
@@ -58,9 +58,9 @@ DEPLOY_ENABLED=true
 
 ## 4. HTTPS 与域名
 
-当前容器内 Nginx 仅监听 HTTP，便于首次 IP 验证。面向真实用户前，必须完成域名备案并配置 HTTPS。可以在宿主机使用腾讯云证书或 Certbot，把 443 流量转发到本 Compose 的 Web 服务；WebSocket 必须保留 Upgrade/Connection 头并使用 `wss://`。
+生产 Compose 使用 Caddy 作为 80/443 公网入口，自动申请和续期 `soundzones.cn` 与 `www.soundzones.cn` 的 HTTPS 证书，并把 HTTP 自动升级为 HTTPS；WebSocket 也由 Caddy 自动代理。`42.193.189.68` 的 HTTP 入口保留为故障排查备用。
 
-HTTPS 上线后，把 `.env.production` 的 `PUBLIC_ORIGIN` 改为准确的 `https://你的域名`，然后重新部署。
+在 DNSPod 添加 `@` 和 `www` 的 A 记录并指向服务器公网 IP `42.193.189.68`，等待公网解析生效后再部署。`.env.production` 的 `PUBLIC_ORIGIN` 必须为 `https://soundzones.cn`；确认 HTTPS 可用后可把 `SOUNDZONE_PASSWORD_AUTH_ENABLED` 设为 `true`。
 
 ## 5. 日常发布
 
