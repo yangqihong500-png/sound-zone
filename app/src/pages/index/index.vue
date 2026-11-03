@@ -74,6 +74,16 @@
       </view>
       <view v-else class="empty">No live zones match your search.</view>
     </view>
+    <!-- #ifdef H5 -->
+    <view class="icp-footer">
+      <a
+        class="icp-footer__link"
+        href="https://beian.miit.gov.cn/"
+        target="_blank"
+        rel="noopener noreferrer"
+      >粤ICP备2026156975号-1</a>
+    </view>
+    <!-- #endif -->
     <suspended-zone-player />
   </view>
 </template>
@@ -324,4 +334,17 @@ function goDiscover() { uni.pageScrollTo({ selector: '.feed', duration: 300 }) }
 .scene-bar--fixed { margin-bottom: 0; }
 .scene-bar--hidden { visibility: hidden; }
 .discover-toolbar { top: var(--status-bar-height); }
+.icp-footer {
+  display: flex;
+  justify-content: center;
+  padding: 52rpx 16rpx 16rpx;
+  color: $sz-text-tertiary;
+  font-size: 20rpx;
+  line-height: 1.5;
+}
+.icp-footer__link {
+  color: inherit;
+  text-decoration: none;
+}
+.icp-footer__link:hover { color: $sz-text-secondary; }
 </style>
