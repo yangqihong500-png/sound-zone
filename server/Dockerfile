@@ -1,11 +1,14 @@
+# syntax=docker/dockerfile:1.7
 FROM maven:3.9.9-eclipse-temurin-17 AS build
 
 WORKDIR /workspace
-COPY pom.xml ./
-RUN mvn -B -DskipTests dependency:go-offline
+COPY pom.xml settings.xml ./
+RUN --mount=type=cache,id=soundzone-maven,target=/root/.m2 \
+    mvn -B -s settings.xml -DskipTests dependency:go-offline
 
 COPY src ./src
-RUN mvn -B -DskipTests package
+RUN --mount=type=cache,id=soundzone-maven,target=/root/.m2 \
+    mvn -B -s settings.xml -DskipTests package
 
 FROM eclipse-temurin:17-jre-jammy
 

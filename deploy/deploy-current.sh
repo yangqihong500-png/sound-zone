@@ -19,7 +19,7 @@ source "$config_file"
 : "${DEPLOY_SSH_KEY:?set DEPLOY_SSH_KEY in $config_file}"
 
 known_hosts_file="${DEPLOY_KNOWN_HOSTS_FILE:-$repo_root/.deploy-known-hosts}"
-ssh_command="ssh -i $DEPLOY_SSH_KEY -p $DEPLOY_PORT -o UserKnownHostsFile=$known_hosts_file -o StrictHostKeyChecking=yes"
+ssh_command="ssh -i $DEPLOY_SSH_KEY -p $DEPLOY_PORT -o UserKnownHostsFile=$known_hosts_file -o StrictHostKeyChecking=yes -o ServerAliveInterval=30 -o ServerAliveCountMax=120"
 
 rsync -az --delete \
   --exclude '.git/' \
@@ -38,6 +38,8 @@ ssh -i "$DEPLOY_SSH_KEY" \
   -p "$DEPLOY_PORT" \
   -o UserKnownHostsFile="$known_hosts_file" \
   -o StrictHostKeyChecking=yes \
+  -o ServerAliveInterval=30 \
+  -o ServerAliveCountMax=120 \
   "$DEPLOY_USER@$DEPLOY_HOST" \
   "set -eu; cd '$DEPLOY_PATH'; \
    mkdir -p data/images data/audio data/covers backups; \

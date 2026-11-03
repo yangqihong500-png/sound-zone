@@ -86,7 +86,7 @@ jobs:
             --exclude 'server/target/' \
             --exclude 'data/' \
             --exclude 'backups/' \
-            -e "ssh -p $DEPLOY_PORT" \
+            -e "ssh -p $DEPLOY_PORT -o ServerAliveInterval=30 -o ServerAliveCountMax=120" \
             ./ "$DEPLOY_USER@$DEPLOY_HOST:$DEPLOY_PATH/"
       - name: Build and restart changed services
         env:
@@ -95,7 +95,10 @@ jobs:
           DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
           DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
         run: |
-          ssh -p "$DEPLOY_PORT" "$DEPLOY_USER@$DEPLOY_HOST" \
+          ssh -p "$DEPLOY_PORT" \
+            -o ServerAliveInterval=30 \
+            -o ServerAliveCountMax=120 \
+            "$DEPLOY_USER@$DEPLOY_HOST" \
             "cd '$DEPLOY_PATH' && \
              mkdir -p data/images data/audio data/covers backups && \
              sudo chmod 755 data data/audio data/covers && \
