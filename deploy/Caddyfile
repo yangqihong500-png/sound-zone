@@ -10,6 +10,26 @@ www.soundzones.cn {
 	redir https://soundzones.cn{uri} permanent
 }
 
+words.soundzones.cn {
+	basic_auth {
+		octave {$IELTS_BASIC_HASH}
+	}
+	reverse_proxy 172.18.0.1:8765
+}
+
+speaking.soundzones.cn {
+	handle_path /sync/* {
+		reverse_proxy 172.18.0.1:8771
+	}
+
+	handle {
+		basic_auth {
+			octave {$IELTS_BASIC_HASH}
+		}
+		reverse_proxy 172.18.0.1:8766
+	}
+}
+
 http://42.193.189.68, http://127.0.0.1, http://localhost {
 	reverse_proxy web:80
 }
