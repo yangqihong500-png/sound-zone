@@ -104,8 +104,6 @@ services:
   caddy:
     image: caddy:2.10-alpine
     restart: unless-stopped
-    environment:
-      IELTS_BASIC_HASH: ${IELTS_BASIC_HASH:?set IELTS_BASIC_HASH}
     depends_on:
       web:
         condition: service_healthy
